@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/device_management_screen.dart';
+import '../screens/admin/rental_orders_screen_admin.dart';
 
 class AdminNavigationDrawer extends StatelessWidget {
   final AdminSection currentSection;
@@ -30,7 +31,7 @@ class AdminNavigationDrawer extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,6 +88,22 @@ class AdminNavigationDrawer extends StatelessWidget {
                   );
                 },
               ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.receipt_long_rounded,
+                label: 'Quản lý đơn thuê',
+                selected: currentSection == AdminSection.rentalOrders,
+                onTap: () {
+                  Navigator.pop(context);
+                  if (currentSection == AdminSection.rentalOrders) return;
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const RentalOrdersScreen(),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -98,6 +115,7 @@ class AdminNavigationDrawer extends StatelessWidget {
 enum AdminSection {
   dashboard,
   devices,
+  rentalOrders,
 }
 
 class _DrawerItem extends StatelessWidget {
@@ -120,9 +138,9 @@ class _DrawerItem extends StatelessWidget {
 
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -133,7 +151,7 @@ class _DrawerItem extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   color: selected ? Colors.white : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: foreground),
               ),

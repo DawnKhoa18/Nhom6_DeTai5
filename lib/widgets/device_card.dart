@@ -1,146 +1,156 @@
 import 'package:flutter/material.dart';
-
-import '../models/device.dart';
+import 'package:intl/intl.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_device.dart';
 
 class DeviceCardModern extends StatelessWidget {
-  final Device device;
+  final AdminDevice device;
 
   const DeviceCardModern({super.key, required this.device});
 
-  Color getColor() {
+  Color get _statusColor {
     switch (device.status) {
-      case 'available':
+      case 'san_sang':
         return const Color(0xFF059669);
-      case 'rented':
+      case 'dang_thue':
         return const Color(0xFF2563EB);
-      default:
+      case 'bao_tri':
         return const Color(0xFFEA580C);
+      case 'hong':
+      case 'ngung_kinh_doanh':
+        return const Color(0xFFDC2626);
+      default:
+        return const Color(0xFF64748B);
     }
   }
 
-  String getText() {
+  String get _statusText {
     switch (device.status) {
-      case 'available':
+      case 'san_sang':
         return 'Sẵn sàng';
-      case 'rented':
+      case 'dang_thue':
         return 'Đang cho thuê';
-      default:
+      case 'bao_tri':
         return 'Bảo trì';
+      case 'hong':
+        return 'Hỏng';
+      case 'ngung_kinh_doanh':
+        return 'Ngừng kinh doanh';
+      default:
+        return device.status;
     }
   }
 
-  IconData getStatusIcon() {
+  IconData get _statusIcon {
     switch (device.status) {
-      case 'available':
+      case 'san_sang':
         return Icons.check_circle_rounded;
-      case 'rented':
+      case 'dang_thue':
         return Icons.assignment_turned_in_rounded;
-      default:
+      case 'bao_tri':
         return Icons.build_circle_rounded;
+      case 'hong':
+      case 'ngung_kinh_doanh':
+        return Icons.error_rounded;
+      default:
+        return Icons.info_rounded;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = getColor();
+    final currency = NumberFormat.decimalPattern('vi');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.05),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                device.image,
-                width: 72,
-                height: 72,
-                fit: BoxFit.cover,
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: _statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
               ),
+              child: Icon(Icons.laptop_mac_rounded, color: _statusColor),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    device.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          device.displayName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _StatusBadge(
+                        icon: _statusIcon,
+                        label: _statusText,
+                        color: _statusColor,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    device.brand,
+                    '${device.assetCode} • ${device.type}',
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              getStatusIcon(),
-                              size: 16,
-                              color: statusColor,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              getText(),
-                              style: TextStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                      _InfoPill(label: device.cpu ?? 'CPU chưa cập nhật'),
+                      _InfoPill(label: device.ram ?? 'RAM chưa cập nhật'),
+                      _InfoPill(label: device.storage ?? 'Ổ cứng chưa cập nhật'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${currency.format(device.dailyRentalPrice)} đ/ngày',
+                          style: const TextStyle(
+                            color: Color(0xFF1D4ED8),
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'Cập nhật gần đây',
-                          style: TextStyle(
-                            color: Color(0xFF475569),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
+                      Text(
+                        'Cọc ${device.depositRate.toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: Color(0xFF475569),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -148,20 +158,70 @@ class DeviceCardModern extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF94A3B8),
-              ),
-            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _StatusBadge({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  final String label;
+
+  const _InfoPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF475569),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

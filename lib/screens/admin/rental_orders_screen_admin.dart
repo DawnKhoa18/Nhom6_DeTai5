@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_rental_order.dart';
+import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
+import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
 
 class RentalOrdersScreen extends StatefulWidget {
   const RentalOrdersScreen({super.key});
@@ -8,397 +12,762 @@ class RentalOrdersScreen extends StatefulWidget {
 }
 
 class _RentalOrdersScreenState extends State<RentalOrdersScreen> {
-  String selectedStatus = "Chờ duyệt";
+  final AdminApiService _apiService = const AdminApiService();
 
-  final List<Map<String, dynamic>> orders = [
-    {
-      "company": "Công ty ABC",
-      "devices": [
-        "Laptop Asus TUF Gaming F16",
-        "Laptop Lenovo Legion 5",
-      ], // Cập nhật tên máy giống ảnh mẫu
-      "date": "01/05 - 10/05",
-      "total": "5.000.000",
-      "status": "Chờ duyệt",
-    },
-    {
-      "company": "Công ty FPT",
-      "devices": ["Thinkpad X1"],
-      "date": "05/05 - 12/05",
-      "total": "3.500.000",
-      "status": "Đang thuê",
-    },
-  ];
+  late Future<List<AdminRentalOrder>> _ordersFuture;
+  String selectedStatus = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersFuture = _apiService.getRentalOrders();
+  }
+
+  void _reload() {
+    setState(() {
+      _ordersFuture = _apiService.getRentalOrders();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF9F8FD,
-      ), // Nền tím nhạt thanh lịch giống ảnh mẫu
+      backgroundColor: const Color(0xFFF3F7FB),
       appBar: AppBar(
-        title: const Text(
-          "Quản lý đơn thuê",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
+        title: const Text('Quản lý đơn thuê'),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {},
-        ),
-      ),
-      body: Column(
-        children: [
-          /// FILTER
-          Container(
-            color: Colors.white,
-            height: 56,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                _filter("Chờ duyệt"),
-                _filter("Đang thuê"),
-                _filter("Hoàn thành"),
-                _filter("Quá hạn"),
-              ],
-            ),
-          ),
-
-          /// LIST
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(12),
-              children: orders
-                  .where((e) => e["status"] == selectedStatus)
-                  .map((e) => _orderCard(e))
-                  .toList(),
-            ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFF0F172A),
+        actions: [
+          IconButton(
+            tooltip: 'Tải lại',
+            onPressed: _reload,
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
-    );
-  }
+      drawer: const AdminNavigationDrawer(
+        currentSection: AdminSection.rentalOrders,
+      ),
+      body: FutureBuilder<List<AdminRentalOrder>>(
+        future: _ordersFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-  /// FILTER BUTTON
-  Widget _filter(String text) {
-    final bool isSelected = selectedStatus == text;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedStatus = text;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFFFFF1F2)
-              : Colors.transparent, // Nền hồng nhạt khi select (hoặc tùy biến)
-          borderRadius: BorderRadius.circular(24),
-          border: isSelected
-              ? Border.all(color: Colors.transparent)
-              : Border.all(color: Colors.transparent),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 13,
-          ),
-        ),
+          if (snapshot.hasError) {
+            return _ErrorState(
+              message: 'Không tải được danh sách đơn thuê.',
+              detail: snapshot.error.toString(),
+              onRetry: _reload,
+            );
+          }
+
+          final orders = snapshot.data ?? const [];
+          final filtered = selectedStatus == 'all'
+              ? orders
+              : orders.where((order) => order.status == selectedStatus).toList();
+
+          return RefreshIndicator(
+            onRefresh: () async => _reload(),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: [
+                _HeaderPanel(
+                  orders: orders,
+                  selectedStatus: selectedStatus,
+                  onStatusChanged: (value) {
+                    setState(() {
+                      selectedStatus = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Danh sách đơn thuê',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${filtered.length} mục',
+                        style: const TextStyle(
+                          color: Color(0xFF334155),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (filtered.isEmpty)
+                  const _EmptyState()
+                else
+                  ...filtered.map(
+                    (order) => _RentalOrderCard(
+                      order: order,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RentalOrderDetailScreen(order: order),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
+}
 
-  /// CARD
-  Widget _orderCard(Map order) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => OrderDetailScreen(order)),
-        );
-      },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 14),
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ), // Bo góc tròn mịn như ảnh
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+class _HeaderPanel extends StatelessWidget {
+  final List<AdminRentalOrder> orders;
+  final String selectedStatus;
+  final ValueChanged<String> onStatusChanged;
+
+  const _HeaderPanel({
+    required this.orders,
+    required this.selectedStatus,
+    required this.onStatusChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Đơn thuê',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Theo dõi yêu cầu thuê, trạng thái xử lý và danh sách máy trong từng đơn.',
+            style: TextStyle(
+              color: Color(0xFF475569),
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    order["company"],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Color(0xFF2D2D2D),
-                    ),
-                  ),
-                  _status(order["status"]),
-                ],
+              _FilterChip(
+                label: 'Tất cả ${orders.length}',
+                selected: selectedStatus == 'all',
+                onTap: () => onStatusChanged('all'),
               ),
-
-              const SizedBox(height: 12),
-
-              const Text(
-                "Danh sách máy",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w500,
-                ),
+              _FilterChip(
+                label: 'Chờ duyệt ${_count('cho_duyet')}',
+                selected: selectedStatus == 'cho_duyet',
+                onTap: () => onStatusChanged('cho_duyet'),
+                color: const Color(0xFFFAAD14),
               ),
-              const SizedBox(height: 4),
-
-              // Chỉnh sửa: Hiện danh sách máy dạng text thuần không có dấu chấm tròn
-              ...order["devices"]
-                  .map<Widget>(
-                    (d) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(
-                        d,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-
-              const SizedBox(height: 8),
-
-              Text(
-                "Ngày thuê: ${order["date"]}",
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              _FilterChip(
+                label: 'Đã duyệt ${_count('da_duyet')}',
+                selected: selectedStatus == 'da_duyet',
+                onTap: () => onStatusChanged('da_duyet'),
+                color: const Color(0xFF2563EB),
               ),
-              const SizedBox(height: 2),
-              Text(
-                "Tổng tiền: ${order["total"]} đ",
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              _FilterChip(
+                label: 'Đang thuê ${_count('dang_thue')}',
+                selected: selectedStatus == 'dang_thue',
+                onTap: () => onStatusChanged('dang_thue'),
+                color: const Color(0xFF4F46E5),
               ),
-
-              const SizedBox(height: 14),
-
-              // Hàng nút bấm bo góc đồng đều sát nhau tương tự ảnh mẫu
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(
-                            0xFFFF4D4F,
-                          ), // Màu đỏ nút Duyệt
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () => _approve(order),
-                        child: const Text(
-                          "Duyệt",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(
-                            0xFFFAAD14,
-                          ), // Màu cam nút Thu hồi
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () => _return(order),
-                        child: const Text(
-                          "Thu hồi",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 38,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(
-                            0xFF52C41A,
-                          ), // Màu xanh lá nút Biên bản
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Xuất biên bản")),
-                          );
-                        },
-                        child: const Text(
-                          "Biên bản",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              _FilterChip(
+                label: 'Hoàn thành ${_count('hoan_thanh')}',
+                selected: selectedStatus == 'hoan_thanh',
+                onTap: () => onStatusChanged('hoan_thanh'),
+                color: const Color(0xFF059669),
+              ),
+              _FilterChip(
+                label: 'Quá hạn ${_count('qua_han')}',
+                selected: selectedStatus == 'qua_han',
+                onTap: () => onStatusChanged('qua_han'),
+                color: const Color(0xFFDC2626),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  /// APPROVE
-  void _approve(Map order) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Duyệt đơn"),
-        content: const Text("Bạn có muốn duyệt đơn này không?"),
-        actions: [
-          TextButton(
-            child: const Text("Hủy"),
-            onPressed: () => Navigator.pop(context),
-          ),
-          ElevatedButton(
-            child: const Text("Duyệt"),
-            onPressed: () {
-              setState(() {
-                order["status"] = "Đang thuê";
-              });
-              Navigator.pop(context);
-            },
-          ),
         ],
       ),
     );
   }
 
-  /// RETURN
-  void _return(Map order) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Thu hồi máy"),
-        content: const Text("Xác nhận đã thu hồi máy?"),
-        actions: [
-          TextButton(
-            child: const Text("Hủy"),
-            onPressed: () => Navigator.pop(context),
-          ),
-          ElevatedButton(
-            child: const Text("Xác nhận"),
-            onPressed: () {
-              setState(() {
-                order["status"] = "Hoàn thành";
-              });
-              Navigator.pop(context);
-            },
-          ),
-        ],
-      ),
-    );
+  int _count(String status) {
+    return orders.where((order) => order.status == status).length;
   }
+}
 
-  Widget _status(String s) {
-    Color color = Colors.grey;
-    if (s == "Chờ duyệt") color = const Color(0xFFFAAD14);
-    if (s == "Đang thuê") color = const Color(0xFF1890FF);
-    if (s == "Hoàn thành") color = const Color(0xFF52C41A);
-    if (s == "Quá hạn") color = const Color(0xFFFF4D4F);
+class _RentalOrderCard extends StatelessWidget {
+  final AdminRentalOrder order;
+  final VoidCallback onTap;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        s,
-        style: const TextStyle(
+  const _RentalOrderCard({
+    required this.order,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.decimalPattern('vi');
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final statusColor = _statusColor(order.status);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
           color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withOpacity(0.04),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.companyName ?? 'Đơn vị chưa cập nhật',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        order.code,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _StatusBadge(
+                  label: _statusText(order.status),
+                  color: statusColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Danh sách máy',
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...order.devices.take(3).map(
+                  (device) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${device.assetCode ?? 'Không mã'} • ${device.displayName}',
+                      style: const TextStyle(
+                        color: Color(0xFF334155),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            if (order.devices.length > 3)
+              Text(
+                '+${order.devices.length - 3} thiết bị khác',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _MetaItem(
+                    icon: Icons.date_range_rounded,
+                    label:
+                        '${dateFormat.format(order.startDate)} - ${dateFormat.format(order.expectedEndDate)}',
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '${currency.format(order.grandTotal)} đ',
+                  style: const TextStyle(
+                    color: Color(0xFF1D4ED8),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// DETAIL SCREEN
-class OrderDetailScreen extends StatelessWidget {
-  final Map order;
+class RentalOrderDetailScreen extends StatelessWidget {
+  final AdminRentalOrder order;
 
-  const OrderDetailScreen(this.order, {super.key});
+  const RentalOrderDetailScreen({super.key, required this.order});
 
   @override
   Widget build(BuildContext context) {
+    final currency = NumberFormat.decimalPattern('vi');
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Chi tiết đơn thuê")),
-      body: Padding(
+      backgroundColor: const Color(0xFFF3F7FB),
+      appBar: AppBar(
+        title: const Text('Chi tiết đơn thuê'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: const Color(0xFF0F172A),
+        elevation: 0,
+      ),
+      body: ListView(
         padding: const EdgeInsets.all(16),
+        children: [
+          _DetailSection(
+            title: order.companyName ?? 'Đơn vị chưa cập nhật',
+            children: [
+              _InfoRow(label: 'Mã đơn', value: order.code),
+              _InfoRow(label: 'Trạng thái', value: _statusText(order.status)),
+              _InfoRow(
+                label: 'Thời gian thuê',
+                value:
+                    '${dateFormat.format(order.startDate)} - ${dateFormat.format(order.expectedEndDate)}',
+              ),
+              if (order.purpose != null)
+                _InfoRow(label: 'Mục đích', value: order.purpose!),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _DetailSection(
+            title: 'Thiết bị trong đơn',
+            children: order.devices
+                .map(
+                  (device) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.laptop_mac_rounded,
+                          size: 20,
+                          color: Color(0xFF1D4ED8),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                device.displayName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${device.assetCode ?? 'Không mã'} • ${device.rentalDays} ngày',
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${currency.format(device.lineTotal)} đ',
+                          style: const TextStyle(
+                            color: Color(0xFF1D4ED8),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 14),
+          _DetailSection(
+            title: 'Thanh toán',
+            children: [
+              _InfoRow(
+                label: 'Tiền thuê',
+                value: '${currency.format(order.rentalTotal)} đ',
+              ),
+              _InfoRow(
+                label: 'Tiền đặt cọc',
+                value: '${currency.format(order.depositTotal)} đ',
+              ),
+              _InfoRow(
+                label: 'Tiền đền bù',
+                value: '${currency.format(order.compensationTotal)} đ',
+              ),
+              const Divider(height: 22),
+              _InfoRow(
+                label: 'Tổng cộng',
+                value: '${currency.format(order.grandTotal)} đ',
+                bold: true,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.color = const Color(0xFF1D4ED8),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.12) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? color.withOpacity(0.35) : Colors.transparent,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? color : const Color(0xFF475569),
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusBadge({
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _MetaItem({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF64748B)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DetailSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _DetailSection({
+    required this.title,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool bold;
+
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Color(0xFF64748B)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: const Color(0xFF0F172A),
+                fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final String detail;
+  final VoidCallback onRetry;
+
+  const _ErrorState({
+    required this.message,
+    required this.detail,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            const Icon(Icons.cloud_off_rounded, size: 42, color: Colors.grey),
+            const SizedBox(height: 12),
             Text(
-              "Đơn vị: ${order["company"]}",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-            const SizedBox(height: 10),
-            const Text(
-              "Thiết bị:",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            ...order["devices"].map<Widget>((e) => Text("• $e")).toList(),
-            const SizedBox(height: 10),
-            Text("Thời gian: ${order["date"]}"),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              "Tổng tiền: ${order["total"]} đ",
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              detail,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Thử lại'),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Center(
+        child: Text(
+          'Không có đơn thuê phù hợp với bộ lọc hiện tại.',
+          style: TextStyle(color: Color(0xFF64748B)),
+        ),
+      ),
+    );
+  }
+}
+
+String _statusText(String status) {
+  switch (status) {
+    case 'cho_duyet':
+      return 'Chờ duyệt';
+    case 'da_duyet':
+      return 'Đã duyệt';
+    case 'dang_thue':
+      return 'Đang thuê';
+    case 'yeu_cau_tra':
+      return 'Yêu cầu trả';
+    case 'hoan_thanh':
+      return 'Hoàn thành';
+    case 'qua_han':
+      return 'Quá hạn';
+    case 'huy':
+      return 'Hủy';
+    case 'tu_choi':
+      return 'Từ chối';
+    default:
+      return status;
+  }
+}
+
+Color _statusColor(String status) {
+  switch (status) {
+    case 'cho_duyet':
+      return const Color(0xFFFAAD14);
+    case 'da_duyet':
+      return const Color(0xFF2563EB);
+    case 'dang_thue':
+      return const Color(0xFF4F46E5);
+    case 'hoan_thanh':
+      return const Color(0xFF059669);
+    case 'qua_han':
+    case 'tu_choi':
+    case 'huy':
+      return const Color(0xFFDC2626);
+    default:
+      return const Color(0xFF64748B);
   }
 }

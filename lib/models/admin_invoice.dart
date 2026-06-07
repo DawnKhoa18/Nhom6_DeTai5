@@ -8,6 +8,8 @@ class AdminInvoice {
   final double depositAmount;
   final double compensationAmount;
   final double totalAmount;
+  final double paidAmount;
+  final double remainingAmount;
   final String status;
   final DateTime createdAt;
 
@@ -21,6 +23,8 @@ class AdminInvoice {
     required this.depositAmount,
     required this.compensationAmount,
     required this.totalAmount,
+    required this.paidAmount,
+    required this.remainingAmount,
     required this.status,
     required this.createdAt,
   });
@@ -36,6 +40,8 @@ class AdminInvoice {
       depositAmount: _toDouble(json['tienDatCoc']),
       compensationAmount: _toDouble(json['tienDenBu']),
       totalAmount: _toDouble(json['tongThanhToan']),
+      paidAmount: _toDouble(json['soTienDaThanhToan']),
+      remainingAmount: _toDouble(json['soTienConLai']),
       status: json['trangThai'] as String? ?? '',
       createdAt:
           DateTime.tryParse(json['ngayLap']?.toString() ?? '') ?? DateTime.now(),

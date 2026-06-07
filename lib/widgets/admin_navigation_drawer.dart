@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/computer_line_management_screen.dart';
+import '../screens/admin/damage_level_management_screen.dart';
 import '../screens/admin/device_management_screen.dart';
 import '../screens/admin/invoice_management_screen.dart';
 import '../screens/admin/maintenance_management_screen.dart';
@@ -156,6 +157,18 @@ class AdminNavigationDrawer extends StatelessWidget {
                 ),
                 currentSection: currentSection,
               ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.rule_rounded,
+                label: 'Mức độ hư hỏng',
+                selected: currentSection == AdminSection.damageLevels,
+                onTap: () => _goTo(
+                  context,
+                  const DamageLevelManagementScreen(),
+                  AdminSection.damageLevels,
+                ),
+                currentSection: currentSection,
+              ),
             ],
           ),
         ),
@@ -182,6 +195,7 @@ enum AdminSection {
   maintenances,
   invoices,
   payments,
+  damageLevels,
 }
 
 class _DrawerItem extends StatelessWidget {

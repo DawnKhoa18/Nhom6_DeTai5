@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:nhom6_detai5_doancuoiki/models/admin_dashboard.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_computer_line.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_device.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_invoice.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_maintenance.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_payment.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_rental_order.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_user.dart';
 
@@ -104,6 +106,49 @@ class AdminApiService {
         'ngayBatDau': startDate.toIso8601String(),
         'noiDung': content,
         'chiPhi': cost,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+  }
+
+  Future<List<AdminInvoice>> getInvoices() async {
+    final response = await _get('/api/admin/invoices');
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(AdminInvoice.fromJson)
+        .toList();
+  }
+
+  Future<List<AdminPayment>> getPayments() async {
+    final response = await _get('/api/admin/payments');
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(AdminPayment.fromJson)
+        .toList();
+  }
+
+  Future<void> createPayment({
+    required int invoiceId,
+    required double amount,
+    required String method,
+    String? transactionCode,
+    String? note,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/admin/payments');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'hoaDonId': invoiceId,
+        'soTien': amount,
+        'phuongThuc': method,
+        'maGiaoDich': transactionCode,
+        'ghiChu': note,
       }),
     );
 

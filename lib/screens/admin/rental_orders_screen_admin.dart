@@ -29,6 +29,51 @@ class _RentalOrdersScreenState extends State<RentalOrdersScreen> {
     });
   }
 
+  Future<void> _changeOrderStatus(
+    AdminRentalOrder order,
+    String nextStatus,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Chuyển trạng thái đơn ${order.code}?'),
+        content: Text(
+          'Trạng thái mới: ${_statusText(nextStatus)}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _apiService.updateRentalOrderStatus(order.id, nextStatus);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã cập nhật đơn ${order.code}.'),
+        ),
+      );
+      _reload();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cập nhật thất bại: $error'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -122,6 +167,9 @@ class _RentalOrdersScreenState extends State<RentalOrdersScreen> {
                   ...filtered.map(
                     (order) => _RentalOrderCard(
                       order: order,
+                      onStatusChanged: (nextStatus) {
+                        _changeOrderStatus(order, nextStatus);
+                      },
                       onTap: () {
                         Navigator.push(
                           context,
@@ -243,10 +291,12 @@ class _HeaderPanel extends StatelessWidget {
 class _RentalOrderCard extends StatelessWidget {
   final AdminRentalOrder order;
   final VoidCallback onTap;
+  final ValueChanged<String> onStatusChanged;
 
   const _RentalOrderCard({
     required this.order,
     required this.onTap,
+    required this.onStatusChanged,
   });
 
   @override
@@ -361,11 +411,102 @@ class _RentalOrderCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            _OrderActions(
+              status: order.status,
+              onStatusChanged: onStatusChanged,
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _OrderActions extends StatelessWidget {
+  final String status;
+  final ValueChanged<String> onStatusChanged;
+
+  const _OrderActions({
+    required this.status,
+    required this.onStatusChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = switch (status) {
+      'cho_duyet' => [
+          _ActionConfig(
+            label: 'Duyệt',
+            icon: Icons.check_rounded,
+            color: const Color(0xFF059669),
+            nextStatus: 'da_duyet',
+          ),
+          _ActionConfig(
+            label: 'Từ chối',
+            icon: Icons.close_rounded,
+            color: const Color(0xFFDC2626),
+            nextStatus: 'tu_choi',
+          ),
+        ],
+      'da_duyet' => [
+          _ActionConfig(
+            label: 'Bắt đầu thuê',
+            icon: Icons.play_arrow_rounded,
+            color: const Color(0xFF4F46E5),
+            nextStatus: 'dang_thue',
+          ),
+        ],
+      'dang_thue' => [
+          _ActionConfig(
+            label: 'Thu hồi',
+            icon: Icons.assignment_return_rounded,
+            color: const Color(0xFFEA580C),
+            nextStatus: 'hoan_thanh',
+          ),
+        ],
+      _ => <_ActionConfig>[],
+    };
+
+    if (actions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: actions
+          .map(
+            (action) => OutlinedButton.icon(
+              onPressed: () => onStatusChanged(action.nextStatus),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: action.color,
+                side: BorderSide(color: action.color.withOpacity(0.35)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: Icon(action.icon, size: 18),
+              label: Text(action.label),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _ActionConfig {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final String nextStatus;
+
+  const _ActionConfig({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.nextStatus,
+  });
 }
 
 class RentalOrderDetailScreen extends StatelessWidget {

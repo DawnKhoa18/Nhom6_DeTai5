@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_device.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_maintenance.dart';
 import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
@@ -92,7 +93,7 @@ class _MaintenanceManagementScreenState
         currentSection: AdminSection.maintenances,
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: _showCreateMaintenanceSheet,
         backgroundColor: const Color(0xFF1D4ED8),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded),
@@ -198,6 +199,265 @@ class _MaintenanceManagementScreenState
         selectedStatus == 'all' || maintenance.status == selectedStatus;
 
     return matchesKeyword && matchesStatus;
+  }
+
+  void _showCreateMaintenanceSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return _CreateMaintenanceSheet(
+          apiService: _apiService,
+          onCreated: () {
+            Navigator.pop(context);
+            _reload();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Đã tạo phiếu bảo trì.')),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CreateMaintenanceSheet extends StatefulWidget {
+  final AdminApiService apiService;
+  final VoidCallback onCreated;
+
+  const _CreateMaintenanceSheet({
+    required this.apiService,
+    required this.onCreated,
+  });
+
+  @override
+  State<_CreateMaintenanceSheet> createState() =>
+      _CreateMaintenanceSheetState();
+}
+
+class _CreateMaintenanceSheetState extends State<_CreateMaintenanceSheet> {
+  final TextEditingController _contentController = TextEditingController();
+  final TextEditingController _costController = TextEditingController(text: '0');
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  late Future<List<AdminDevice>> _devicesFuture;
+  AdminDevice? _selectedDevice;
+  DateTime _startDate = DateTime.now();
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _devicesFuture = widget.apiService.getDevices();
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    _costController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 18,
+        right: 18,
+        top: 18,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+      ),
+      child: FutureBuilder<List<AdminDevice>>(
+        future: _devicesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox(
+              height: 220,
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return SizedBox(
+              height: 220,
+              child: Center(
+                child: Text('Không tải được danh sách máy: ${snapshot.error}'),
+              ),
+            );
+          }
+
+          final devices = snapshot.data ?? const [];
+
+          return Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tạo phiếu bảo trì',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<AdminDevice>(
+                    value: _selectedDevice,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Thiết bị',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: devices
+                        .map(
+                          (device) => DropdownMenuItem(
+                            value: device,
+                            child: Text(
+                              '${device.assetCode} • ${device.displayName}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    validator: (value) {
+                      if (value == null) return 'Chọn thiết bị cần bảo trì';
+                      return null;
+                    },
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedDevice = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: _pickStartDate,
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Ngày bắt đầu',
+                        border: OutlineInputBorder(),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.date_range_rounded, size: 18),
+                          const SizedBox(width: 8),
+                          Text(dateFormat.format(_startDate)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _contentController,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Nội dung bảo trì',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Nhập nội dung bảo trì';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _costController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Chi phí',
+                      suffixText: 'đ',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      final cost = double.tryParse(value?.trim() ?? '');
+                      if (cost == null || cost < 0) {
+                        return 'Chi phí không hợp lệ';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: _isSubmitting ? null : _submit,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label: const Text('Tạo phiếu'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _pickStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (picked == null) return;
+
+    setState(() {
+      _startDate = picked;
+    });
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await widget.apiService.createMaintenance(
+        deviceId: _selectedDevice!.id,
+        startDate: _startDate,
+        content: _contentController.text.trim(),
+        cost: double.parse(_costController.text.trim()),
+      );
+      if (!mounted) return;
+      widget.onCreated();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tạo phiếu thất bại: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 }
 

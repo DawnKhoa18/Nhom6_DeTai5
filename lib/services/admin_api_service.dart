@@ -89,6 +89,29 @@ class AdminApiService {
     }
   }
 
+  Future<void> createMaintenance({
+    required int deviceId,
+    required DateTime startDate,
+    required String content,
+    required double cost,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/admin/maintenances');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'mayTinhId': deviceId,
+        'ngayBatDau': startDate.toIso8601String(),
+        'noiDung': content,
+        'chiPhi': cost,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+  }
+
   Future<http.Response> _get(String path) async {
     final uri = Uri.parse('$baseUrl$path');
     final response = await http.get(uri);

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:nhom6_detai5_doancuoiki/models/admin_dashboard.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_computer_line.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_damage_level.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_device.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_invoice.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_maintenance.dart';
@@ -129,6 +130,15 @@ class AdminApiService {
     return data
         .whereType<Map<String, dynamic>>()
         .map(AdminPayment.fromJson)
+        .toList();
+  }
+
+  Future<List<AdminDamageLevel>> getDamageLevels() async {
+    final response = await _get('/api/admin/damage-levels');
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(AdminDamageLevel.fromJson)
         .toList();
   }
 

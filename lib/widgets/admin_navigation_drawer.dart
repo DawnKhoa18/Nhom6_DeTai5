@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/computer_line_management_screen.dart';
 import '../screens/admin/device_management_screen.dart';
+import '../screens/admin/invoice_management_screen.dart';
 import '../screens/admin/maintenance_management_screen.dart';
 import '../screens/admin/rental_orders_screen_admin.dart';
 import '../screens/admin/user_management_screen.dart';
@@ -130,6 +131,18 @@ class AdminNavigationDrawer extends StatelessWidget {
                 ),
                 currentSection: currentSection,
               ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.request_quote_rounded,
+                label: 'Quản lý hóa đơn',
+                selected: currentSection == AdminSection.invoices,
+                onTap: () => _goTo(
+                  context,
+                  const InvoiceManagementScreen(),
+                  AdminSection.invoices,
+                ),
+                currentSection: currentSection,
+              ),
             ],
           ),
         ),
@@ -154,6 +167,7 @@ enum AdminSection {
   users,
   computerLines,
   maintenances,
+  invoices,
 }
 
 class _DrawerItem extends StatelessWidget {

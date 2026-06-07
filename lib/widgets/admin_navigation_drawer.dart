@@ -5,6 +5,7 @@ import '../screens/admin/computer_line_management_screen.dart';
 import '../screens/admin/device_management_screen.dart';
 import '../screens/admin/invoice_management_screen.dart';
 import '../screens/admin/maintenance_management_screen.dart';
+import '../screens/admin/payment_management_screen.dart';
 import '../screens/admin/rental_orders_screen_admin.dart';
 import '../screens/admin/user_management_screen.dart';
 
@@ -143,6 +144,18 @@ class AdminNavigationDrawer extends StatelessWidget {
                 ),
                 currentSection: currentSection,
               ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.payments_rounded,
+                label: 'Quản lý thanh toán',
+                selected: currentSection == AdminSection.payments,
+                onTap: () => _goTo(
+                  context,
+                  const PaymentManagementScreen(),
+                  AdminSection.payments,
+                ),
+                currentSection: currentSection,
+              ),
             ],
           ),
         ),
@@ -168,6 +181,7 @@ enum AdminSection {
   computerLines,
   maintenances,
   invoices,
+  payments,
 }
 
 class _DrawerItem extends StatelessWidget {

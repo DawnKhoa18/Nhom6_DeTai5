@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../widgets/equipment_card.dart';
 import '../../models/equipment_model.dart'; // Import file model vào để sử dụng
 import 'equipment_detail_screen.dart'; // CHỈNH SỬA: Import màn hình chi tiết để chuyển trang

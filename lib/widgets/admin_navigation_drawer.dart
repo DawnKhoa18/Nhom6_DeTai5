@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../screens/admin/admin_dashboard_screen.dart';
+import '../screens/admin/computer_line_management_screen.dart';
 import '../screens/admin/device_management_screen.dart';
+import '../screens/admin/maintenance_management_screen.dart';
 import '../screens/admin/rental_orders_screen_admin.dart';
+import '../screens/admin/user_management_screen.dart';
 
 class AdminNavigationDrawer extends StatelessWidget {
   final AdminSection currentSection;
@@ -19,8 +22,7 @@ class AdminNavigationDrawer extends StatelessWidget {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ListView(
             children: [
               Container(
                 width: double.infinity,
@@ -61,53 +63,86 @@ class AdminNavigationDrawer extends StatelessWidget {
                 icon: Icons.space_dashboard_rounded,
                 label: 'Dashboard',
                 selected: currentSection == AdminSection.dashboard,
-                onTap: () {
-                  Navigator.pop(context);
-                  if (currentSection == AdminSection.dashboard) return;
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AdminDashboardScreen(),
-                    ),
-                  );
-                },
+                onTap: () => _goTo(
+                  context,
+                  const AdminDashboardScreen(),
+                  AdminSection.dashboard,
+                ),
+                currentSection: currentSection,
               ),
               const SizedBox(height: 8),
               _DrawerItem(
                 icon: Icons.inventory_2_rounded,
                 label: 'Quản lý thiết bị',
                 selected: currentSection == AdminSection.devices,
-                onTap: () {
-                  Navigator.pop(context);
-                  if (currentSection == AdminSection.devices) return;
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DeviceManagementScreen(),
-                    ),
-                  );
-                },
+                onTap: () => _goTo(
+                  context,
+                  const DeviceManagementScreen(),
+                  AdminSection.devices,
+                ),
+                currentSection: currentSection,
               ),
               const SizedBox(height: 8),
               _DrawerItem(
                 icon: Icons.receipt_long_rounded,
                 label: 'Quản lý đơn thuê',
                 selected: currentSection == AdminSection.rentalOrders,
-                onTap: () {
-                  Navigator.pop(context);
-                  if (currentSection == AdminSection.rentalOrders) return;
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const RentalOrdersScreen(),
-                    ),
-                  );
-                },
+                onTap: () => _goTo(
+                  context,
+                  const RentalOrdersScreen(),
+                  AdminSection.rentalOrders,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.manage_accounts_rounded,
+                label: 'Quản lý người dùng',
+                selected: currentSection == AdminSection.users,
+                onTap: () => _goTo(
+                  context,
+                  const UserManagementScreen(),
+                  AdminSection.users,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.category_rounded,
+                label: 'Quản lý dòng máy',
+                selected: currentSection == AdminSection.computerLines,
+                onTap: () => _goTo(
+                  context,
+                  const ComputerLineManagementScreen(),
+                  AdminSection.computerLines,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.build_rounded,
+                label: 'Quản lý bảo trì',
+                selected: currentSection == AdminSection.maintenances,
+                onTap: () => _goTo(
+                  context,
+                  const MaintenanceManagementScreen(),
+                  AdminSection.maintenances,
+                ),
+                currentSection: currentSection,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  void _goTo(BuildContext context, Widget screen, AdminSection target) {
+    Navigator.pop(context);
+    if (currentSection == target) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
     );
   }
 }
@@ -116,6 +151,9 @@ enum AdminSection {
   dashboard,
   devices,
   rentalOrders,
+  users,
+  computerLines,
+  maintenances,
 }
 
 class _DrawerItem extends StatelessWidget {
@@ -123,18 +161,21 @@ class _DrawerItem extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final AdminSection currentSection;
 
   const _DrawerItem({
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
+    required this.currentSection,
   });
 
   @override
   Widget build(BuildContext context) {
     final background = selected ? const Color(0xFFE0ECFF) : Colors.transparent;
-    final foreground = selected ? const Color(0xFF1D4ED8) : const Color(0xFF334155);
+    final foreground =
+        selected ? const Color(0xFF1D4ED8) : const Color(0xFF334155);
 
     return Material(
       color: background,

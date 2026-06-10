@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class MyAssetsScreen extends StatefulWidget {
   const MyAssetsScreen({super.key});
@@ -8,224 +10,103 @@ class MyAssetsScreen extends StatefulWidget {
 }
 
 class _MyAssetsScreenState extends State<MyAssetsScreen> {
-  // Hàm hiển thị Popup báo hỏng từ dưới lên (BottomSheet)
-  void _showReportIssueSheet(BuildContext context, String assetName) {
+  final List<Map<String, dynamic>> activeAssets = [
+    {"chiTietId": 1, "maTaiSan": "LT-LEN-T14-001", "name": "Lenovo ThinkPad T14", "status": "Hoạt động tốt"},
+    {"chiTietId": 2, "maTaiSan": "LT-APP-MBP-001", "name": "Apple MacBook Pro M2", "status": "Hoạt động tốt"},
+  ];
+
+  void _openReportDamageSheet(int chiTietId, String name) {
+    final moTaController = TextEditingController();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(
-              context,
-            ).viewInsets.bottom, // Đẩy lên khi bàn phím mở
-            left: 16,
-            right: 16,
-            top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Báo hỏng thiết bị: $assetName',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const TextField(
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'Mô tả chi tiết lỗi bạn đang gặp phải...',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context); // Đóng popup
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Đã gửi yêu cầu hỗ trợ thành công!'),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  icon: const Icon(Icons.send),
-                  label: const Text('Gửi yêu cầu hỗ trợ'),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // Widget dùng chung để build danh sách máy theo trạng thái
-  Widget _buildAssetList(String statusFilter) {
-    // Dữ liệu giả lập
-    final items = [
-      {
-        'name': 'Dell UltraSharp 27"',
-        'status': 'Hoạt động tốt',
-        'date': '10/04/2026 - 10/10/2026',
-      },
-      {
-        'name': 'Bàn phím cơ Keychron',
-        'status': 'Đang báo hỏng',
-        'date': '15/03/2026 - 15/09/2026',
-      },
-      {
-        'name': 'Mac mini M2',
-        'status': 'Hoạt động tốt',
-        'date': '01/01/2026 - 31/12/2026',
-      },
-    ];
-
-    final filteredItems = statusFilter == 'Tất cả'
-        ? items
-        : items.where((i) => i['status'] == statusFilter).toList();
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filteredItems.length,
-      itemBuilder: (context, index) {
-        final item = filteredItems[index];
-        final isBroken = item['status'] == 'Đang báo hỏng';
-
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item['name']!,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isBroken
-                            ? Colors.red.shade100
-                            : Colors.green.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        item['status']!,
-                        style: TextStyle(
-                          color: isBroken
-                              ? Colors.red.shade700
-                              : Colors.green.shade700,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.date_range, size: 16, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Thời hạn: ${item['date']}',
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(height: 1),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: isBroken
-                      ? const Text(
-                          'Đang chờ IT xử lý...',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () =>
-                              _showReportIssueSheet(context, item['name']!),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.redAccent,
-                            side: const BorderSide(color: Colors.redAccent),
-                          ),
-                          icon: const Icon(Icons.build_circle_outlined),
-                          label: const Text('Báo hỏng'),
-                        ),
-                ),
-              ],
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Báo hỏng máy: $name', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: moTaController,
+              maxLines: 3,
+              decoration: const InputDecoration(hintText: 'Mô tả tình trạng lỗi/hư hỏng thực tế...', border: OutlineInputBorder()),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () async {
+                  if (moTaController.text.trim().isEmpty) return;
+                  Navigator.pop(context);
+
+                  try {
+                    final response = await http.post(
+                      Uri.parse('http://10.0.2.2:5135/api/user/UserDamages/report'),
+                      headers: {"Content-Type": "application/json"},
+                      body: json.encode({
+                        "chiTietDonThueId": chiTietId,
+                        "nguoiBaoCaoId": 3,
+                        "moTa": moTaController.text,
+                        "hinhAnhUrl": "assets/images/error_sample.jpg"
+                      }),
+                    );
+
+                    // FIXED: Kiem tra mounted de xoa canh bao Async Gaps
+                    if (!mounted) return;
+
+                    if (response.statusCode == 200) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Đã gửi báo cáo sự cố! Kỹ thuật viên sẽ liên hệ xử lý.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Lỗi kết nối server: $e')),
+                    );
+                  }
+                },
+                child: const Text('GỬI BÁO CÁO HỎNG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Máy đang sử dụng',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          centerTitle: true,
-          bottom: const TabBar(
-            labelColor: Colors.teal,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.teal,
-            tabs: [
-              Tab(text: 'Tất cả'),
-              Tab(text: 'Hoạt động tốt'),
-              Tab(text: 'Đang báo hỏng'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _buildAssetList('Tất cả'),
-            _buildAssetList('Hoạt động tốt'),
-            _buildAssetList('Đang báo hỏng'),
-          ],
-        ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Thiết bị đang sử dụng')),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: activeAssets.length,
+        itemBuilder: (context, index) {
+          final asset = activeAssets[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const Icon(Icons.computer, color: Colors.teal, size: 36),
+              title: Text(asset['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Mã TS: ${asset['maTaiSan']}\nTrạng thái: ${asset['status']}'),
+              isThreeLine: true,
+              trailing: ElevatedButton.icon(
+                // FIXED: Doi Colors.orangeDeep thanh Colors.deepOrange, xoa bot const bi loi constant value
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade100, elevation: 0),
+                onPressed: () => _openReportDamageSheet(asset['chiTietId'], asset['name']),
+                icon: const Icon(Icons.build, size: 14, color: Colors.deepOrange),
+                label: const Text('Báo hỏng', style: TextStyle(color: Colors.deepOrange, fontSize: 12)),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

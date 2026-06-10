@@ -1,244 +1,101 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:intl/intl.dart';
+import 'cart_manager.dart';
 
-class EquipmentDetailScreen extends StatelessWidget {
-  const EquipmentDetailScreen({super.key});
+class EquipmentDetailScreen extends StatefulWidget {
+  final int deviceId;
+  const EquipmentDetailScreen({super.key, required this.deviceId});
+
+  @override
+  State<EquipmentDetailScreen> createState() => _EquipmentDetailScreenState();
+}
+
+class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
+  Map<String, dynamic>? detail;
+  bool isLoading = true;
+  final formatCurrency = NumberFormat.decimalPattern('vi');
+
+  @override
+  void initState() {
+    super.initState();
+    fetchDetail();
+  }
+
+  Future<void> fetchDetail() async {
+    try {
+      final response = await http.get(Uri.parse('http://10.0.2.2:5135/api/user/UserDevices/${widget.deviceId}'));
+      if (response.statusCode == 200) {
+        setState(() {
+          detail = json.decode(response.body);
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Đồng bộ dải màu xanh công nghệ từ màn hình SignIn
-    const Color techBlue = Color(0xFF1E88E5);
-    const Color techDarkBlue = Color(0xFF0D47A1);
-    const Color techBlack = Color(0xFF1A1A1A);
-    const Color bgLightGreen = Color(
-      0xFFF7FBF9,
-    ); // Màu nền hơi hướng xanh nhẹ như hình
-
     return Scaffold(
-      backgroundColor: bgLightGreen,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: techBlack),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Chi tiết thiết bị',
-          style: TextStyle(
-            color: techBlack,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 1. Hình ảnh thiết bị lớn ở trên cùng (Đã sửa lỗi fit nằm sai vị trí)
-                  Center(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 16),
-                      height: 220,
-                      child: Image.network(
-                        'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=500',
-                        fit: BoxFit
-                            .contain, // Đã chuyển fit vào bên trong Image.network chuẩn chỉnh
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(color: techBlue),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(
-                              Icons.laptop,
-                              size: 150,
-                              color: Colors.grey,
-                            ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // 2. Tên thiết bị và Giá thuê
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      appBar: AppBar(title: const Text('Chi tiết cấu hình')),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.teal))
+          : detail == null
+              ? const Center(child: Text('Không tìm thấy thông tin'))
+              : SingleChildScrollView(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Expanded(
-                        child: Text(
-                          'ThinkPad T14 Gen 3',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: techBlack,
-                          ),
+                      Image.asset('assets/images/Lap1.jpg', height: 200, width: double.infinity, fit: BoxFit.cover),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(detail!['name'] ?? '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Text('Giá thuê: ${formatCurrency.format(detail!['giaThueNgay'])} đ/ngày', style: const TextStyle(fontSize: 16, color: Colors.teal, fontWeight: FontWeight.bold)),
+                            Text('Tiền đặt cọc dự kiến: ${formatCurrency.format(detail!['tienDatCocDuKien'])} đ (${detail!['tiLeDatCoc']}%)', style: const TextStyle(fontSize: 14, color: Colors.orange, fontWeight: FontWeight.w500)),
+                            const Divider(height: 24),
+                            const Text('Thông số kỹ thuật', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            _buildSpecTile(Icons.developer_board, 'Vi xử lý', detail!['cpu']),
+                            _buildSpecTile(Icons.memory, 'Bộ nhớ RAM', detail!['ram']),
+                            _buildSpecTile(Icons.sd_storage, 'Ổ cứng', detail!['ssd']),
+                            _buildSpecTile(Icons.developer_board, 'Card đồ họa', detail!['gpu']),
+                            _buildSpecTile(Icons.monitor, 'Màn hình', detail!['display']),
+                            _buildSpecTile(Icons.settings, 'Hệ điều hành', detail!['heDieuHanh']),
+                            const SizedBox(height: 30),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                                onPressed: () {
+                                  CartManager.addToCart(detail!);
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã thêm máy vào giỏ hàng')));
+                                },
+                                child: const Text('THÊM VÀO GIỎ THUÊ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const Text(
-                        '150.000 đ',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
+                      )
                     ],
                   ),
-
-                  const SizedBox(height: 8),
-                  const Divider(thickness: 1, color: Colors.black12),
-                  const SizedBox(height: 16),
-
-                  // 3. Tiêu đề "Cấu hình chi tiết"
-                  const Text(
-                    'Cấu hình chi tiết',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: techBlack,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 4. Danh sách các thông số cấu hình giống hình mẫu
-                  _buildConfigItem(
-                    Icons.badge_outlined,
-                    'Vi xử lý (CPU)',
-                    'Core i7-12700H',
-                    techBlue,
-                  ),
-                  _buildConfigItem(
-                    Icons.memory,
-                    'Bộ nhớ (RAM)',
-                    '16GB',
-                    techBlue,
-                  ),
-                  _buildConfigItem(
-                    Icons.sd_card_outlined,
-                    'Ổ cứng (SSD)',
-                    '512GB SSD',
-                    techBlue,
-                  ),
-                  _buildConfigItem(
-                    Icons.monitor,
-                    'Màn hình',
-                    '14" FHD+',
-                    techBlue,
-                  ),
-                  _buildConfigItem(
-                    Icons.developer_board_outlined,
-                    'Card đồ họa (GPU)',
-                    'Iris Xe',
-                    techBlue,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // 5. Nút bấm "THUÊ THIẾT BỊ NÀY" cố định ở dưới đáy với hiệu ứng Gradient đồng bộ app
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Container(
-              width: double.infinity,
-              height: 54,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(
-                  colors: [techBlue, techDarkBlue],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: techBlue.withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: ElevatedButton(
-                onPressed: () {
-                  // Xử lý logic khi bấm nút thuê ở đây nha bồ
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  'THUÊ THIẾT BỊ NÀY',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  // Widget con để build từng hàng thông số cấu hình mượt mà, đúng hàng đúng lối
-  Widget _buildConfigItem(
-    IconData icon,
-    String title,
-    String value,
-    Color iconColor,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.black12, width: 0.5),
-            ),
-            child: Icon(icon, size: 22, color: iconColor),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  Widget _buildSpecTile(IconData icon, String title, String value) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.teal),
+      title: Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      subtitle: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black)),
+      dense: true,
     );
   }
 }

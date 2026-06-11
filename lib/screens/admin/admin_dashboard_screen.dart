@@ -372,7 +372,7 @@ class _StatusAndRevenuePanel extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Theo hóa đơn trong dữ liệu hiện tại',
+                          'Theo giao dịch thanh toán thực thu',
                           style: TextStyle(
                             fontSize: 12,
                             color: Color(0xFF64748B),

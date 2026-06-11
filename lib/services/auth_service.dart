@@ -29,6 +29,46 @@ class AuthService {
     SessionManager.setSession(session);
     return session;
   }
+
+  Future<void> resetPassword({
+    required String account,
+    required String email,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/auth/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'account': account,
+        'email': email,
+        'newPassword': newPassword,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/auth/change-password'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (SessionManager.token != null)
+          'Authorization': 'Bearer ${SessionManager.token}',
+      },
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+  }
 }
 
 class SessionManager {

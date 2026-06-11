@@ -5,6 +5,7 @@ import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
 import 'package:nhom6_detai5_doancuoiki/services/auth_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
 import 'package:nhom6_detai5_doancuoiki/screens/admin/user_form_sheet.dart';
+import 'package:nhom6_detai5_doancuoiki/widgets/password_dialogs.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -224,6 +225,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         onToggleStatus: canChangeAccess
                             ? () => _toggleStatus(user)
                             : null,
+                        onResetPassword: () async {
+                          final reset = await showResetUserPasswordDialog(
+                            context,
+                            userId: user.id,
+                            username: user.username,
+                          );
+                          if (reset && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Đã cấp lại mật khẩu tạm.'),
+                              ),
+                            );
+                          }
+                        },
                       );
                     },
                   ),
@@ -415,6 +430,7 @@ class _UserCard extends StatelessWidget {
   final VoidCallback? onToggleStatus;
   final bool isCurrentUser;
   final bool accessLocked;
+  final VoidCallback onResetPassword;
 
   const _UserCard({
     required this.user,
@@ -422,6 +438,7 @@ class _UserCard extends StatelessWidget {
     required this.onToggleStatus,
     required this.isCurrentUser,
     required this.accessLocked,
+    required this.onResetPassword,
   });
 
   @override
@@ -484,11 +501,16 @@ class _UserCard extends StatelessWidget {
                       onSelected: (value) {
                         if (value == 'edit') onEdit();
                         if (value == 'status') onToggleStatus?.call();
+                        if (value == 'password') onResetPassword();
                       },
                       itemBuilder: (_) => [
                         const PopupMenuItem(
                           value: 'edit',
                           child: Text('Sửa tài khoản'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'password',
+                          child: Text('Cấp lại mật khẩu'),
                         ),
                         if (!accessLocked)
                           PopupMenuItem(

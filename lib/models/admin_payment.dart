@@ -43,4 +43,6 @@ class AdminPayment {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }
+
+  bool get isAdjustment => amount < 0;
 }

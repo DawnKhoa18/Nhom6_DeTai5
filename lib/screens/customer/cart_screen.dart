@@ -15,8 +15,15 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double totalThue = CartManager.cartItems.fold(0, (sum, item) => sum + (item['price'] ?? item['giaThueNgay'] ?? 0));
-    double totalCoc = CartManager.cartItems.fold(0, (sum, item) => sum + (item['tienDatCocDuKien'] ?? ((item['price'] ?? 0) * 10))); // Dự phòng tính toán
+    final totalThue = CartManager.cartItems.fold<double>(
+      0,
+      (sum, item) =>
+          sum + _number(item['price'] ?? item['giaThueNgay']),
+    );
+    final totalCoc = CartManager.cartItems.fold<double>(
+      0,
+      (sum, item) => sum + _depositAmount(item),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Giỏ thuê thiết bị')),
@@ -60,6 +67,24 @@ class _CartScreenState extends State<CartScreen> {
                         Text('${formatCurrency.format(totalThue)} đ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Tổng tiền đặt cọc:',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                        Text(
+                          '${formatCurrency.format(totalCoc)} đ',
+                          style: const TextStyle(
+                            color: Color(0xFFB45309),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -78,4 +103,17 @@ class _CartScreenState extends State<CartScreen> {
             ),
     );
   }
+
+  double _depositAmount(Map<String, dynamic> item) {
+    final amount = _number(item['tienDatCocDuKien']);
+    if (amount > 0) return amount;
+
+    final machineValue =
+        _number(item['machineValue'] ?? item['giaTriMay']);
+    final depositRate =
+        _number(item['depositRate'] ?? item['tiLeDatCoc']);
+    return machineValue * depositRate / 100;
+  }
+
+  double _number(dynamic value) => (value as num?)?.toDouble() ?? 0;
 }

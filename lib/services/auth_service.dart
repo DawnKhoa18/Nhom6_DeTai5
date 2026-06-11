@@ -116,6 +116,88 @@ class AuthService {
       throw Exception('API ${response.statusCode}: ${response.body}');
     }
   }
+
+  Future<CustomerProfile> getCustomerProfile(int userId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/api/user/profile/$userId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+    return CustomerProfile.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<CustomerProfile> updateCustomerProfile({
+    required int userId,
+    required String fullName,
+    required String username,
+    String? email,
+    String? phone,
+  }) async {
+    final response = await http.put(
+      Uri.parse('${ApiConfig.baseUrl}/api/user/profile/$userId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'hoTen': fullName,
+        'tenDangNhap': username,
+        'email': email,
+        'soDienThoai': phone,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final profile = CustomerProfile.fromJson(
+      data['profile'] as Map<String, dynamic>,
+    );
+    SessionManager.updateIdentity(
+      fullName: profile.fullName,
+      username: profile.username,
+    );
+    return profile;
+  }
+}
+
+class CustomerProfile {
+  final int id;
+  final int? organizationId;
+  final String fullName;
+  final String username;
+  final String? email;
+  final String? phone;
+  final String role;
+  final String status;
+  final String? organizationName;
+
+  const CustomerProfile({
+    required this.id,
+    required this.organizationId,
+    required this.fullName,
+    required this.username,
+    required this.email,
+    required this.phone,
+    required this.role,
+    required this.status,
+    required this.organizationName,
+  });
+
+  factory CustomerProfile.fromJson(Map<String, dynamic> json) {
+    return CustomerProfile(
+      id: json['id'] as int? ?? 0,
+      organizationId: json['donViId'] as int?,
+      fullName: json['hoTen'] as String? ?? '',
+      username: json['tenDangNhap'] as String? ?? '',
+      email: json['email'] as String?,
+      phone: json['soDienThoai'] as String?,
+      role: json['vaiTro'] as String? ?? '',
+      status: json['trangThai'] as String? ?? '',
+      organizationName: json['tenDonVi'] as String?,
+    );
+  }
 }
 
 class RegistrationOrganization {
@@ -154,6 +236,22 @@ class SessionManager {
 
   static void setSession(AuthSession session) {
     _session = session;
+  }
+
+  static void updateIdentity({
+    required String fullName,
+    required String username,
+  }) {
+    final session = _session;
+    if (session == null) return;
+    _session = AuthSession(
+      userId: session.userId,
+      organizationId: session.organizationId,
+      fullName: fullName,
+      username: username,
+      role: session.role,
+      token: session.token,
+    );
   }
 
   static void clear() {

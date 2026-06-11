@@ -4,6 +4,7 @@ import 'customer/catalog_screen.dart';
 import 'customer/my_orders_screen.dart';
 import 'customer/my_assets_screen.dart';
 import 'customer/chat_support_screen.dart';
+import 'customer/customer_profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -21,6 +22,7 @@ class _MainScreenState extends State<MainScreen> {
     const MyOrdersScreen(),
     const MyAssetsScreen(),
     const ChatSupportScreen(),
+    const CustomerProfileScreen(),
   ];
 
   @override
@@ -58,6 +60,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.chat_bubble_outline),
             selectedIcon: Icon(Icons.chat_bubble),
             label: 'Hỗ trợ',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Tài khoản',
           ),
         ],
       ),

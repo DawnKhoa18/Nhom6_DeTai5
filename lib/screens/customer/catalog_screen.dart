@@ -5,6 +5,7 @@ import '../../widgets/equipment_card.dart';
 import 'equipment_detail_screen.dart';
 import 'cart_screen.dart';
 import 'cart_manager.dart';
+import 'package:nhom6_detai5_doancuoiki/services/api_config.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -25,8 +26,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   Future<void> fetchCatalog() async {
     try {
-      // 10.0.2.2 nối cổng Kestrel 5135 của C# từ máy ảo Android
-      final response = await http.get(Uri.parse('http://10.0.2.2:5135/api/user/UserDevices/catalog'));
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/user/UserDevices/catalog'),
+      );
       if (response.statusCode == 200) {
         setState(() {
           devices = json.decode(response.body);
@@ -88,13 +90,23 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       ssd: item['ssd'] ?? '',
                       gpu: item['gpu'] ?? '',
                       display: item['display'] ?? '',
-                      imagePath: 'assets/images/Lap1.jpg',
+                      imagePath: _resolveImage(item['imageUrl']),
                       onDetailsPressed: () {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => EquipmentDetailScreen(deviceId: item['id'])));
                       },
                       onAddToCart: () {
-                        CartManager.addToCart(item);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã thêm ${item['name']} vào giỏ')));
+                        final added = CartManager.addToCart(
+                          Map<String, dynamic>.from(item),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              added
+                                  ? 'Đã thêm ${item['name']} vào giỏ'
+                                  : 'Thiết bị đã có trong giỏ',
+                            ),
+                          ),
+                        );
                       },
                     );
                   },
@@ -105,5 +117,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
         ],
       ),
     );
+  }
+
+  String _resolveImage(dynamic value) {
+    final path = value?.toString().trim() ?? '';
+    if (path.isEmpty) return 'assets/images/Lap1.jpg';
+    if (path.startsWith('http')) return path;
+    if (path.startsWith('/')) return ApiConfig.baseUrl + path;
+    return path;
   }
 }

@@ -4,8 +4,15 @@ import 'package:nhom6_detai5_doancuoiki/models/admin_device.dart';
 
 class DeviceCardModern extends StatelessWidget {
   final AdminDevice device;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
-  const DeviceCardModern({super.key, required this.device});
+  const DeviceCardModern({
+    super.key,
+    required this.device,
+    this.onEdit,
+    this.onDelete,
+  });
 
   Color get _statusColor {
     switch (device.status) {
@@ -112,6 +119,26 @@ class DeviceCardModern extends StatelessWidget {
                         label: _statusText,
                         color: _statusColor,
                       ),
+                      if (onEdit != null || onDelete != null)
+                        PopupMenuButton<String>(
+                          tooltip: 'Thao tác',
+                          onSelected: (value) {
+                            if (value == 'edit') onEdit?.call();
+                            if (value == 'delete') onDelete?.call();
+                          },
+                          itemBuilder: (_) => [
+                            if (onEdit != null)
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Sửa thiết bị'),
+                              ),
+                            if (onDelete != null)
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Xóa thiết bị'),
+                              ),
+                          ],
+                        ),
                     ],
                   ),
                   const SizedBox(height: 6),

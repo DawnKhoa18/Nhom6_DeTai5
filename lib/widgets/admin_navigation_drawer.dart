@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/computer_line_management_screen.dart';
+import '../screens/admin/chat_management_screen.dart';
+import '../screens/admin/contract_management_screen.dart';
 import '../screens/admin/damage_level_management_screen.dart';
+import '../screens/admin/damage_report_management_screen.dart';
 import '../screens/admin/device_management_screen.dart';
+import '../screens/admin/extension_request_management_screen.dart';
 import '../screens/admin/invoice_management_screen.dart';
 import '../screens/admin/maintenance_management_screen.dart';
+import '../screens/admin/organization_management_screen.dart';
 import '../screens/admin/payment_management_screen.dart';
 import '../screens/admin/rental_orders_screen_admin.dart';
+import '../screens/admin/return_request_management_screen.dart';
 import '../screens/admin/user_management_screen.dart';
 
 class AdminNavigationDrawer extends StatelessWidget {
@@ -111,6 +117,18 @@ class AdminNavigationDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               _DrawerItem(
+                icon: Icons.business_rounded,
+                label: 'Quản lý đơn vị',
+                selected: currentSection == AdminSection.organizations,
+                onTap: () => _goTo(
+                  context,
+                  const OrganizationManagementScreen(),
+                  AdminSection.organizations,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
                 icon: Icons.category_rounded,
                 label: 'Quản lý dòng máy',
                 selected: currentSection == AdminSection.computerLines,
@@ -169,6 +187,66 @@ class AdminNavigationDrawer extends StatelessWidget {
                 ),
                 currentSection: currentSection,
               ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.report_problem_rounded,
+                label: 'Báo cáo hư hỏng',
+                selected: currentSection == AdminSection.damageReports,
+                onTap: () => _goTo(
+                  context,
+                  const DamageReportManagementScreen(),
+                  AdminSection.damageReports,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.assignment_return_rounded,
+                label: 'Yêu cầu trả máy',
+                selected: currentSection == AdminSection.returnRequests,
+                onTap: () => _goTo(
+                  context,
+                  const ReturnRequestManagementScreen(),
+                  AdminSection.returnRequests,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.more_time_rounded,
+                label: 'Yêu cầu gia hạn',
+                selected: currentSection == AdminSection.extensionRequests,
+                onTap: () => _goTo(
+                  context,
+                  const ExtensionRequestManagementScreen(),
+                  AdminSection.extensionRequests,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.description_rounded,
+                label: 'Quản lý hợp đồng',
+                selected: currentSection == AdminSection.contracts,
+                onTap: () => _goTo(
+                  context,
+                  const ContractManagementScreen(),
+                  AdminSection.contracts,
+                ),
+                currentSection: currentSection,
+              ),
+              const SizedBox(height: 8),
+              _DrawerItem(
+                icon: Icons.forum_rounded,
+                label: 'Chat hỗ trợ',
+                selected: currentSection == AdminSection.chats,
+                onTap: () => _goTo(
+                  context,
+                  const ChatManagementScreen(),
+                  AdminSection.chats,
+                ),
+                currentSection: currentSection,
+              ),
             ],
           ),
         ),
@@ -191,11 +269,17 @@ enum AdminSection {
   devices,
   rentalOrders,
   users,
+  organizations,
   computerLines,
   maintenances,
   invoices,
   payments,
   damageLevels,
+  damageReports,
+  returnRequests,
+  extensionRequests,
+  contracts,
+  chats,
 }
 
 class _DrawerItem extends StatelessWidget {

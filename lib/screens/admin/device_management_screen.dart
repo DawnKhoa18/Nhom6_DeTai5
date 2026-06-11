@@ -3,6 +3,7 @@ import 'package:nhom6_detai5_doancuoiki/models/admin_device.dart';
 import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/device_card.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/admin/device_form_sheet.dart';
 
 class DeviceManagementScreen extends StatefulWidget {
   const DeviceManagementScreen({super.key});
@@ -30,6 +31,69 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
     });
   }
 
+  void _showForm([AdminDevice? device]) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => DeviceFormSheet(
+        api: _apiService,
+        device: device,
+        onSaved: () {
+          Navigator.pop(sheetContext);
+          _reload();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                device == null ? 'Đã thêm thiết bị.' : 'Đã cập nhật thiết bị.',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _delete(AdminDevice device) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xóa thiết bị?'),
+        content: Text(
+          'Thiết bị ' + device.assetCode + ' chỉ có thể xóa nếu chưa phát sinh lịch sử thuê, bảo trì hoặc ảnh.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _apiService.deleteDevice(device.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã xóa thiết bị.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể xóa: ' + error.toString())),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,7 +115,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
         currentSection: AdminSection.devices,
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () => _showForm(),
         backgroundColor: const Color(0xFF1D4ED8),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded),
@@ -131,7 +195,13 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                 if (filtered.isEmpty)
                   const _EmptyState()
                 else
-                  ...filtered.map((device) => DeviceCardModern(device: device)),
+                  ...filtered.map(
+                    (device) => DeviceCardModern(
+                      device: device,
+                      onEdit: () => _showForm(device),
+                      onDelete: () => _delete(device),
+                    ),
+                  ),
               ],
             ),
           );

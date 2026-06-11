@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_user.dart';
 import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/admin/user_form_sheet.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -31,6 +32,69 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     });
   }
 
+  void _showForm([AdminUser? user]) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => UserFormSheet(
+        api: _apiService,
+        user: user,
+        onSaved: () {
+          Navigator.pop(sheetContext);
+          _reload();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                user == null ? 'Đã thêm tài khoản.' : 'Đã cập nhật tài khoản.',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _toggleStatus(AdminUser user) async {
+    final newStatus = user.status == 'hoat_dong' ? 'tam_khoa' : 'hoat_dong';
+    final action = newStatus == 'tam_khoa' ? 'khóa' : 'mở khóa';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(action == 'khóa' ? 'Khóa tài khoản?' : 'Mở khóa tài khoản?'),
+        content: Text('Xác nhận ' + action + ' tài khoản @' + user.username + '.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(action == 'khóa' ? 'Khóa' : 'Mở khóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _apiService.updateUserStatus(user.id, newStatus);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã ' + action + ' tài khoản.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể cập nhật: ' + error.toString())),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -52,7 +116,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         currentSection: AdminSection.users,
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () => _showForm(),
         backgroundColor: const Color(0xFF1D4ED8),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.person_add_alt_1_rounded),
@@ -137,7 +201,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 if (filtered.isEmpty)
                   const _EmptyState()
                 else
-                  ...filtered.map((user) => _UserCard(user: user)),
+                  ...filtered.map(
+                    (user) => _UserCard(
+                      user: user,
+                      onEdit: () => _showForm(user),
+                      onToggleStatus: () => _toggleStatus(user),
+                    ),
+                  ),
               ],
             ),
           );
@@ -322,8 +392,14 @@ class _HeaderPanel extends StatelessWidget {
 
 class _UserCard extends StatelessWidget {
   final AdminUser user;
+  final VoidCallback onEdit;
+  final VoidCallback onToggleStatus;
 
-  const _UserCard({required this.user});
+  const _UserCard({
+    required this.user,
+    required this.onEdit,
+    required this.onToggleStatus,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -379,6 +455,27 @@ class _UserCard extends StatelessWidget {
                     _Badge(
                       label: _statusText(user.status),
                       color: statusColor,
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Thao tác',
+                      onSelected: (value) {
+                        if (value == 'edit') onEdit();
+                        if (value == 'status') onToggleStatus();
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Sửa tài khoản'),
+                        ),
+                        PopupMenuItem(
+                          value: 'status',
+                          child: Text(
+                            user.status == 'hoat_dong'
+                                ? 'Khóa tài khoản'
+                                : 'Mở khóa tài khoản',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nhom6_detai5_doancuoiki/screens/admin/admin_dashboard_screen.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/main_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

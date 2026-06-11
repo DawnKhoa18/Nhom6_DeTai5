@@ -7,6 +7,53 @@ import 'package:nhom6_detai5_doancuoiki/services/api_config.dart';
 class AuthService {
   const AuthService();
 
+  Future<List<RegistrationOrganization>> getRegistrationOrganizations() async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/api/auth/organizations'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(RegistrationOrganization.fromJson)
+        .toList();
+  }
+
+  Future<AuthSession> register({
+    required String fullName,
+    required String username,
+    required String email,
+    required String password,
+    String? phone,
+    int? organizationId,
+    Map<String, dynamic>? newOrganization,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'hoTen': fullName,
+        'tenDangNhap': username,
+        'email': email,
+        'soDienThoai': phone,
+        'matKhau': password,
+        'donViId': organizationId,
+        'donViMoi': newOrganization,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
+    final session = AuthSession.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+    SessionManager.setSession(session);
+    return session;
+  }
+
   Future<AuthSession> login({
     required String account,
     required String password,
@@ -71,11 +118,36 @@ class AuthService {
   }
 }
 
+class RegistrationOrganization {
+  final int id;
+  final String name;
+  final String? address;
+  final String? taxCode;
+
+  const RegistrationOrganization({
+    required this.id,
+    required this.name,
+    this.address,
+    this.taxCode,
+  });
+
+  factory RegistrationOrganization.fromJson(Map<String, dynamic> json) {
+    return RegistrationOrganization(
+      id: json['id'] as int? ?? 0,
+      name: json['tenDonVi'] as String? ?? '',
+      address: json['diaChi'] as String?,
+      taxCode: json['maSoThue'] as String?,
+    );
+  }
+}
+
 class SessionManager {
   static AuthSession? _session;
 
   static AuthSession? get current => _session;
   static String? get token => _session?.token;
+  static int get userId => _session?.userId ?? 0;
+  static int? get organizationId => _session?.organizationId;
   static String get role => _session?.role ?? '';
   static bool get isAdmin => role == 'admin';
   static bool get isStaff => role == 'nhan_vien';

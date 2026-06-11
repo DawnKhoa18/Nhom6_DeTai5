@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:nhom6_detai5_doancuoiki/services/api_config.dart';
+import 'package:nhom6_detai5_doancuoiki/services/auth_service.dart';
+import 'cart_manager.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -11,142 +14,126 @@ class BookingScreen extends StatefulWidget {
 
 class _BookingScreenState extends State<BookingScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nguoiDaiDienController = TextEditingController();
-  final _phongBanController = TextEditingController();
-  final _mucDichController = TextEditingController();
+  final _purpose = TextEditingController();
+  DateTime _start = DateTime.now();
+  DateTime _end = DateTime.now().add(const Duration(days: 7));
+  bool _saving = false;
 
-  DateTime _ngayBatDau = DateTime.now();
-  DateTime _ngayKetThuc = DateTime.now().add(const Duration(days: 30));
-  bool _isLoading = false;
+  @override
+  void dispose() {
+    _purpose.dispose();
+    super.dispose();
+  }
 
-  // Giả lập danh sách ID máy được truyền từ giỏ hàng sang (Ví dụ máy ID 1 và 2)
-  final List<int> selectedMachineIds = [1, 2]; 
+  Future<void> _pickDate(bool start) async {
+    final value = await showDatePicker(
+      context: context,
+      initialDate: start ? _start : _end,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 1095)),
+    );
+    if (value == null) return;
+    setState(() {
+      if (start) {
+        _start = value;
+        if (!_end.isAfter(_start)) _end = _start.add(const Duration(days: 1));
+      } else {
+        _end = value;
+      }
+    });
+  }
 
-  Future<void> _submitBooking() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    // Điền IP máy tính hoặc 10.0.2.2 cho máy ảo Android
-    const String apiUrl = 'http://10.0.2.2:5135/api/user/UserOrders/booking';
-
-    final Map<String, dynamic> bookingData = {
-      "donViId": 1, // Giả lập ID Công ty ABC đã insert ở dữ liệu mẫu
-      "nguoiTaoId": 3, // Giả lập ID tài khoản khách hàng Nguyễn Văn An
-      "ngayBatDau": _ngayBatDau.toIso8601String(),
-      "ngayKetThucDuKien": _ngayKetThuc.toIso8601String(),
-      "mucDichSuDung": "${_nguoiDaiDienController.text} - ${_phongBanController.text}: ${_mucDichController.text}",
-      "mayTinhIds": selectedMachineIds
-    };
-
+    if (CartManager.cartItems.isEmpty) return;
+    final organizationId = SessionManager.organizationId;
+    if (organizationId == null || SessionManager.userId <= 0) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Phiên đăng nhập không có thông tin đơn vị.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
     try {
       final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode(bookingData),
+        Uri.parse('${ApiConfig.baseUrl}/api/user/UserOrders/booking'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'donViId': organizationId,
+          'nguoiTaoId': SessionManager.userId,
+          'ngayBatDau': _start.toIso8601String(),
+          'ngayKetThucDuKien': _end.toIso8601String(),
+          'mucDichSuDung': _purpose.text.trim(),
+          'mayTinhIds': CartManager.cartItems.map((x) => x['id']).toList(),
+        }),
       );
-
-      if (response.statusCode == 200) {
-        final result = json.decode(response.body);
-        _showSuccessDialog(result['code'] ?? 'DT-SUCCESS');
-      } else {
-        _showSnackBar('Lỗi hệ thống: ${response.body}');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(response.body);
       }
-    } catch (e) {
-      _showSnackBar('Không thể kết nối đến máy chủ API: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _showSuccessDialog(stringCode) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 8), Text('Thành công')],
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      CartManager.clearCart();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Đã gửi đơn thuê'),
+          content: Text('Mã đơn: ${data['code'] ?? ''}'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))],
         ),
-        content: Text('Đơn thuê $stringCode đã được gửi lên hệ thống và đang chờ duyệt.'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Đóng Dialog
-              Navigator.pop(context); // Quay về màn hình trước
-            },
-            child: const Text('OK'),
-          )
-        ],
-      ),
-    );
-  }
-
-  void _showSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      );
+      if (mounted) Navigator.popUntil(context, (route) => route.isFirst);
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Thông tin gửi yêu cầu thuê')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.teal))
-          : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  TextFormField(
-                    controller: _nguoiDaiDienController,
-                    decoration: const InputDecoration(labelText: 'Người đại diện nhận máy', border: OutlineInputBorder()),
-                    validator: (v) => v!.isEmpty ? 'Vui lòng nhập tên người nhận' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _phongBanController,
-                    decoration: const InputDecoration(labelText: 'Phòng ban / Đơn vị yêu cầu', border: OutlineInputBorder()),
-                    validator: (v) => v!.isEmpty ? 'Vui lòng nhập tên phòng ban' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _mucDichController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Mục đích sử dụng thiết bị', border: OutlineInputBorder()),
-                    validator: (v) => v!.isEmpty ? 'Vui lòng nhập mục đích thuê' : null,
-                  ),
-                  const SizedBox(height: 24),
-                  Card(
-                    color: Colors.teal.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        children: [
-                          ListTile(
-                            leading: const Icon(Icons.date_range, color: Colors.teal),
-                            title: const Text('Ngày bắt đầu thuê'),
-                            trailing: Text('${_ngayBatDau.day}/${_ngayBatDau.month}/${_ngayBatDau.year}'),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.update, color: Colors.orange),
-                            title: const Text('Ngày trả dự kiến'),
-                            trailing: Text('${_ngayKetThuc.day}/${_ngayKetThuc.month}/${_ngayKetThuc.year}'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _submitBooking,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                      child: const Text('GỬI ĐƠN XÁC NHẬN THUÊ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  )
-                ],
-              ),
+      appBar: AppBar(title: const Text('Gửi yêu cầu thuê')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('${CartManager.cartItems.length} thiết bị đã chọn', style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.event_available),
+              title: const Text('Ngày bắt đầu'),
+              subtitle: Text('${_start.day}/${_start.month}/${_start.year}'),
+              onTap: () => _pickDate(true),
             ),
+            ListTile(
+              leading: const Icon(Icons.event_busy),
+              title: const Text('Ngày kết thúc dự kiến'),
+              subtitle: Text('${_end.day}/${_end.month}/${_end.year}'),
+              onTap: () => _pickDate(false),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _purpose,
+              minLines: 3,
+              maxLines: 5,
+              decoration: const InputDecoration(labelText: 'Mục đích sử dụng', border: OutlineInputBorder()),
+              validator: (value) {
+                if ((value ?? '').trim().isEmpty) return 'Vui lòng nhập mục đích sử dụng';
+                if (!_end.isAfter(_start)) return 'Ngày kết thúc phải sau ngày bắt đầu';
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _saving ? null : _submit,
+              icon: const Icon(Icons.send_rounded),
+              label: Text(_saving ? 'Đang gửi...' : 'Gửi đơn thuê'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

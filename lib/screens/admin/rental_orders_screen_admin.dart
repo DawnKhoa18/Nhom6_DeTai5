@@ -457,14 +457,6 @@ class _OrderActions extends StatelessWidget {
             nextStatus: 'dang_thue',
           ),
         ],
-      'dang_thue' => [
-          _ActionConfig(
-            label: 'Thu hồi',
-            icon: Icons.assignment_return_rounded,
-            color: const Color(0xFFEA580C),
-            nextStatus: 'hoan_thanh',
-          ),
-        ],
       _ => <_ActionConfig>[],
     };
 

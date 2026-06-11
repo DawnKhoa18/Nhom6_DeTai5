@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:nhom6_detai5_doancuoiki/services/auth_service.dart';
+import 'package:nhom6_detai5_doancuoiki/services/api_config.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_dashboard.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_computer_line.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_chat.dart';
@@ -13,17 +15,21 @@ import 'package:nhom6_detai5_doancuoiki/models/admin_invoice.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_maintenance.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_organization.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_payment.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_report.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_rental_order.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_return_request.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_user.dart';
 
 class AdminApiService {
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5135',
-  );
+  static const String baseUrl = ApiConfig.baseUrl;
 
   const AdminApiService();
+
+  Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        if (SessionManager.token != null)
+          'Authorization': 'Bearer ${SessionManager.token}',
+      };
 
   Future<AdminDashboard> getDashboard() async {
     final response = await _get('/api/admin/dashboard');
@@ -52,7 +58,7 @@ class AdminApiService {
     final uri = Uri.parse('$baseUrl/api/admin/rental-orders/$orderId/status');
     final response = await http.patch(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({'status': status}),
     );
 
@@ -89,7 +95,7 @@ class AdminApiService {
     final uri = Uri.parse('$baseUrl/api/admin/maintenances/$maintenanceId/status');
     final response = await http.patch(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({'status': status}),
     );
 
@@ -107,7 +113,7 @@ class AdminApiService {
     final uri = Uri.parse('$baseUrl/api/admin/maintenances');
     final response = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'mayTinhId': deviceId,
         'ngayBatDau': startDate.toIso8601String(),
@@ -128,6 +134,46 @@ class AdminApiService {
         .whereType<Map<String, dynamic>>()
         .map(AdminInvoice.fromJson)
         .toList();
+  }
+
+  Future<AdminReport> getReport({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final query = Uri(queryParameters: {
+      'from': from.toIso8601String(),
+      'to': to.toIso8601String(),
+    }).query;
+    final response = await _get('/api/admin/reports/summary?$query');
+    return AdminReport.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> updateMaintenance({
+    required int maintenanceId,
+    required int deviceId,
+    required DateTime startDate,
+    required String content,
+    required double cost,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/admin/maintenances/$maintenanceId',
+    );
+    final response = await http.put(
+      uri,
+      headers: _headers,
+      body: jsonEncode({
+        'mayTinhId': deviceId,
+        'ngayBatDau': startDate.toIso8601String(),
+        'noiDung': content,
+        'chiPhi': cost,
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('API ${response.statusCode}: ${response.body}');
+    }
   }
 
   Future<List<AdminPayment>> getPayments() async {
@@ -160,7 +206,7 @@ class AdminApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/admin/users'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'hoTen': fullName,
         'tenDangNhap': username,
@@ -187,7 +233,7 @@ class AdminApiService {
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/api/admin/users/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'hoTen': fullName,
         'tenDangNhap': username,
@@ -204,7 +250,7 @@ class AdminApiService {
   Future<void> updateUserStatus(int id, String status) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/admin/users/$id/status'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({'status': status}),
     );
     _throwIfFailed(response);
@@ -230,7 +276,7 @@ class AdminApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/admin/devices'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'dongMayTinhId': computerLineId,
         'maTaiSan': assetCode,
@@ -276,7 +322,7 @@ class AdminApiService {
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/api/admin/devices/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'dongMayTinhId': computerLineId,
         'maTaiSan': assetCode,
@@ -300,7 +346,10 @@ class AdminApiService {
   }
 
   Future<void> deleteDevice(int id) async {
-    final response = await http.delete(Uri.parse('$baseUrl/api/admin/devices/$id'));
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/admin/devices/$id'),
+      headers: _headers,
+    );
     _throwIfFailed(response);
   }
 
@@ -321,6 +370,9 @@ class AdminApiService {
       'POST',
       Uri.parse('$baseUrl/api/admin/devices/$deviceId/images'),
     );
+    if (SessionManager.token != null) {
+      request.headers['Authorization'] = 'Bearer ${SessionManager.token}';
+    }
     request.files.add(await http.MultipartFile.fromPath('file', filePath));
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
@@ -333,6 +385,7 @@ class AdminApiService {
   }) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/admin/devices/$deviceId/images/$imageId/primary'),
+      headers: _headers,
     );
     _throwIfFailed(response);
   }
@@ -343,6 +396,7 @@ class AdminApiService {
   }) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/admin/devices/$deviceId/images/$imageId'),
+      headers: _headers,
     );
     _throwIfFailed(response);
   }
@@ -359,7 +413,7 @@ class AdminApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/admin/computer-lines'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'tenDong': name,
         'hang': brand,
@@ -377,7 +431,7 @@ class AdminApiService {
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/api/admin/computer-lines/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'tenDong': name,
         'hang': brand,
@@ -390,6 +444,7 @@ class AdminApiService {
   Future<void> deleteComputerLine(int id) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/admin/computer-lines/$id'),
+      headers: _headers,
     );
     _throwIfFailed(response);
   }
@@ -414,7 +469,7 @@ class AdminApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/admin/organizations'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'tenDonVi': name,
         'diaChi': address,
@@ -440,7 +495,7 @@ class AdminApiService {
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/api/admin/organizations/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'tenDonVi': name,
         'diaChi': address,
@@ -457,6 +512,7 @@ class AdminApiService {
   Future<void> deleteOrganization(int id) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/admin/organizations/$id'),
+      headers: _headers,
     );
     _throwIfFailed(response);
   }
@@ -468,7 +524,7 @@ class AdminApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/admin/damage-levels'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'tenMucDo': name,
         'moTa': description,
@@ -487,7 +543,7 @@ class AdminApiService {
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/api/admin/damage-levels/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'tenMucDo': name,
         'moTa': description,
@@ -501,6 +557,7 @@ class AdminApiService {
   Future<void> deleteDamageLevel(int id) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/admin/damage-levels/$id'),
+      headers: _headers,
     );
 
     _throwIfFailed(response);
@@ -522,7 +579,7 @@ class AdminApiService {
   }) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/admin/damage-reports/$id/resolve'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'status': status,
         'mucDoHuHongId': damageLevelId,
@@ -549,7 +606,7 @@ class AdminApiService {
   }) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/admin/return-requests/$id/resolve'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'status': status,
         'tinhTrangTraMay': returnCondition,
@@ -576,7 +633,7 @@ class AdminApiService {
   }) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/admin/extension-requests/$id/resolve'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'status': status,
         'nguoiDuyetId': approverId,
@@ -604,9 +661,29 @@ class AdminApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/admin/contracts'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'donThueId': rentalOrderId,
+        'maHopDong': code,
+        'ngayLap': createdDate.toIso8601String(),
+        'noiDung': content,
+        'fileUrl': fileUrl,
+      }),
+    );
+    _throwIfFailed(response);
+  }
+
+  Future<void> updateContract({
+    required int id,
+    required String code,
+    required DateTime createdDate,
+    String? content,
+    String? fileUrl,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/admin/contracts/$id'),
+      headers: _headers,
+      body: jsonEncode({
         'maHopDong': code,
         'ngayLap': createdDate.toIso8601String(),
         'noiDung': content,
@@ -619,7 +696,7 @@ class AdminApiService {
   Future<void> updateContractStatus(int id, String status) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/admin/contracts/$id/status'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({'status': status}),
     );
     _throwIfFailed(response);
@@ -651,7 +728,7 @@ class AdminApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/admin/chats/$chatId/messages'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'nguoiGuiId': senderId,
         'noiDung': content,
@@ -668,7 +745,7 @@ class AdminApiService {
   }) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/api/admin/chats/$chatId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'status': status,
         'nhanVienPhuTrachId': staffId,
@@ -678,7 +755,7 @@ class AdminApiService {
   }
 
   Future<void> createPayment({
-    required int invoiceId,
+    required int rentalOrderId,
     required double amount,
     required String method,
     String? transactionCode,
@@ -687,9 +764,9 @@ class AdminApiService {
     final uri = Uri.parse('$baseUrl/api/admin/payments');
     final response = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
-        'hoaDonId': invoiceId,
+        'donThueId': rentalOrderId,
         'soTien': amount,
         'phuongThuc': method,
         'maGiaoDich': transactionCode,
@@ -704,7 +781,7 @@ class AdminApiService {
 
   Future<http.Response> _get(String path) async {
     final uri = Uri.parse('$baseUrl$path');
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('API ${response.statusCode}: ${response.body}');

@@ -29,7 +29,9 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
     setState(() => _future = _api.getContracts());
   }
 
-  void _showCreateForm() {
+  void _showCreateForm() => _showContractForm();
+
+  void _showContractForm([AdminContract? contract]) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -39,13 +41,40 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
       ),
       builder: (sheetContext) => _CreateContractSheet(
         api: _api,
+        contract: contract,
         onCreated: () {
           Navigator.pop(sheetContext);
           _reload();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã tạo hợp đồng.')),
+            SnackBar(
+              content: Text(
+                contract == null
+                    ? 'Đã tạo hợp đồng.'
+                    : 'Đã cập nhật hợp đồng.',
+              ),
+            ),
           );
         },
+      ),
+    );
+  }
+
+  void _showDetails(AdminContract contract) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ContractDetailSheet(
+        contract: contract,
+        onEdit: contract.status == 'hieu_luc'
+            ? () {
+                Navigator.pop(context);
+                _showContractForm(contract);
+              }
+            : null,
       ),
     );
   }
@@ -160,6 +189,10 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
                   ...filtered.map(
                     (item) => _ContractCard(
                       contract: item,
+                      onView: () => _showDetails(item),
+                      onEdit: item.status == 'hieu_luc'
+                          ? () => _showContractForm(item)
+                          : null,
                       onStatus: (value) => _changeStatus(item, value),
                     ),
                   ),
@@ -184,8 +217,13 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
 class _CreateContractSheet extends StatefulWidget {
   final AdminApiService api;
   final VoidCallback onCreated;
+  final AdminContract? contract;
 
-  const _CreateContractSheet({required this.api, required this.onCreated});
+  const _CreateContractSheet({
+    required this.api,
+    required this.onCreated,
+    this.contract,
+  });
 
   @override
   State<_CreateContractSheet> createState() => _CreateContractSheetState();
@@ -205,6 +243,13 @@ class _CreateContractSheetState extends State<_CreateContractSheet> {
   void initState() {
     super.initState();
     ordersFuture = widget.api.getRentalOrders();
+    final contract = widget.contract;
+    if (contract != null) {
+      codeController.text = contract.code;
+      contentController.text = contract.content ?? '';
+      fileController.text = contract.fileUrl ?? '';
+      createdDate = contract.createdDate;
+    }
   }
 
   @override
@@ -241,6 +286,14 @@ class _CreateContractSheetState extends State<_CreateContractSheet> {
                     item.status == 'qua_han',
               )
               .toList();
+          if (widget.contract != null && selectedOrder == null) {
+            for (final order in snapshot.data ?? const []) {
+              if (order.id == widget.contract!.rentalOrderId) {
+                selectedOrder = order;
+                break;
+              }
+            }
+          }
           return Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -248,8 +301,10 @@ class _CreateContractSheetState extends State<_CreateContractSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Tạo hợp đồng',
+                  Text(
+                    widget.contract == null
+                        ? 'Tạo hợp đồng'
+                        : 'Chỉnh sửa hợp đồng',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
@@ -264,7 +319,9 @@ class _CreateContractSheetState extends State<_CreateContractSheet> {
                       labelText: 'Đơn thuê',
                       border: OutlineInputBorder(),
                     ),
-                    items: orders
+                    items: (widget.contract == null
+                            ? orders
+                            : (snapshot.data ?? const <AdminRentalOrder>[]))
                         .map(
                           (item) => DropdownMenuItem(
                             value: item,
@@ -277,7 +334,9 @@ class _CreateContractSheetState extends State<_CreateContractSheet> {
                         .toList(),
                     validator: (value) =>
                         value == null ? 'Chọn đơn thuê' : null,
-                    onChanged: (value) => setState(() => selectedOrder = value),
+                    onChanged: widget.contract == null
+                        ? (value) => setState(() => selectedOrder = value)
+                        : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -336,7 +395,11 @@ class _CreateContractSheetState extends State<_CreateContractSheet> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.save_rounded),
-                      label: const Text('Tạo hợp đồng'),
+                      label: Text(
+                        widget.contract == null
+                            ? 'Tạo hợp đồng'
+                            : 'Lưu thay đổi',
+                      ),
                     ),
                   ),
                 ],
@@ -362,23 +425,192 @@ class _CreateContractSheetState extends State<_CreateContractSheet> {
     if (!formKey.currentState!.validate()) return;
     setState(() => submitting = true);
     try {
-      await widget.api.createContract(
-        rentalOrderId: selectedOrder!.id,
-        code: codeController.text.trim(),
-        createdDate: createdDate,
-        content: contentController.text.trim(),
-        fileUrl: fileController.text.trim(),
-      );
+      if (widget.contract == null) {
+        await widget.api.createContract(
+          rentalOrderId: selectedOrder!.id,
+          code: codeController.text.trim(),
+          createdDate: createdDate,
+          content: contentController.text.trim(),
+          fileUrl: fileController.text.trim(),
+        );
+      } else {
+        await widget.api.updateContract(
+          id: widget.contract!.id,
+          code: codeController.text.trim(),
+          createdDate: createdDate,
+          content: contentController.text.trim(),
+          fileUrl: fileController.text.trim(),
+        );
+      }
       if (!mounted) return;
       widget.onCreated();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tạo thất bại: ' + error.toString())),
+        SnackBar(content: Text('Lưu hợp đồng thất bại: ' + error.toString())),
       );
     } finally {
       if (mounted) setState(() => submitting = false);
     }
+  }
+}
+
+class _ContractDetailSheet extends StatelessWidget {
+  final AdminContract contract;
+  final VoidCallback? onEdit;
+
+  const _ContractDetailSheet({required this.contract, this.onEdit});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = DateFormat('dd/MM/yyyy');
+    final money = NumberFormat.decimalPattern('vi');
+    final total = contract.rentalAmount +
+        contract.depositAmount +
+        contract.compensationAmount;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Chi tiết hợp đồng',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Đóng',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _ContractDetailRow(label: 'Mã hợp đồng', value: contract.code),
+            _ContractDetailRow(
+              label: 'Trạng thái',
+              value: _statusText(contract.status),
+            ),
+            _ContractDetailRow(
+              label: 'Đơn thuê',
+              value: contract.rentalOrderCode,
+            ),
+            _ContractDetailRow(label: 'Đơn vị', value: contract.companyName),
+            _ContractDetailRow(
+              label: 'Ngày lập',
+              value: date.format(contract.createdDate),
+            ),
+            _ContractDetailRow(
+              label: 'Thời hạn thuê',
+              value: contract.startDate == null || contract.endDate == null
+                  ? 'Chưa xác định'
+                  : '${date.format(contract.startDate!)} - ${date.format(contract.endDate!)}',
+            ),
+            const Divider(height: 28),
+            _ContractDetailRow(
+              label: 'Tiền thuê',
+              value: '${money.format(contract.rentalAmount)} đ',
+            ),
+            _ContractDetailRow(
+              label: 'Tiền đặt cọc',
+              value: '${money.format(contract.depositAmount)} đ',
+            ),
+            _ContractDetailRow(
+              label: 'Tiền hư hỏng',
+              value: '${money.format(contract.compensationAmount)} đ',
+            ),
+            _ContractDetailRow(
+              label: 'Tổng giá trị',
+              value: '${money.format(total)} đ',
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Thiết bị trong hợp đồng',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            if (contract.devices.isEmpty)
+              const Text('Không có thiết bị.')
+            else
+              ...contract.devices.map(
+                (device) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.devices_rounded),
+                  title: Text(device.deviceName),
+                  subtitle: Text(device.assetCode),
+                ),
+              ),
+            if (contract.content?.isNotEmpty == true) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Nội dung hợp đồng',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(contract.content!, style: const TextStyle(height: 1.45)),
+            ],
+            if (contract.fileUrl?.isNotEmpty == true) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'File hợp đồng',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              SelectableText(
+                contract.fileUrl!,
+                style: const TextStyle(color: Color(0xFF1D4ED8)),
+              ),
+            ],
+            if (onEdit != null) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_rounded),
+                  label: const Text('Chỉnh sửa hợp đồng'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContractDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ContractDetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 115,
+            child: Text(label, style: const TextStyle(color: Color(0xFF64748B))),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -476,8 +708,15 @@ class _Header extends StatelessWidget {
 class _ContractCard extends StatelessWidget {
   final AdminContract contract;
   final ValueChanged<String> onStatus;
+  final VoidCallback onView;
+  final VoidCallback? onEdit;
 
-  const _ContractCard({required this.contract, required this.onStatus});
+  const _ContractCard({
+    required this.contract,
+    required this.onStatus,
+    required this.onView,
+    this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -517,17 +756,26 @@ class _ContractCard extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                onSelected: onStatus,
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'hieu_luc', child: Text('Hiệu lực')),
-                  PopupMenuItem(
-                    value: 'het_hieu_luc',
-                    child: Text('Hết hiệu lực'),
-                  ),
-                  PopupMenuItem(value: 'huy', child: Text('Hủy hợp đồng')),
-                ],
-              ),
+              if (contract.status == 'hieu_luc')
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      onEdit?.call();
+                    } else {
+                      onStatus(value);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Chỉnh sửa')),
+                    PopupMenuItem(
+                      value: 'het_hieu_luc',
+                      child: Text('Kết thúc hiệu lực'),
+                    ),
+                    PopupMenuItem(value: 'huy', child: Text('Hủy hợp đồng')),
+                  ],
+                )
+              else
+                const Icon(Icons.chevron_right_rounded),
             ],
           ),
           const SizedBox(height: 12),
@@ -560,7 +808,13 @@ class _ContractCard extends StatelessWidget {
                     label: Text(item.assetCode + ' • ' + item.deviceName),
                   ),
                 )
-                .toList(),
+              .toList(),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: onView,
+            icon: const Icon(Icons.visibility_rounded, size: 18),
+            label: const Text('Xem chi tiết'),
           ),
         ],
       ),

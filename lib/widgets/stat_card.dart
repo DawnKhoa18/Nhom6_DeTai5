@@ -7,6 +7,7 @@ class StatCard extends StatelessWidget {
   final Color startColor;
   final Color endColor;
   final String caption;
+  final VoidCallback? onTap;
 
   const StatCard({
     super.key,
@@ -16,11 +17,15 @@ class StatCard extends StatelessWidget {
     required this.startColor,
     required this.endColor,
     required this.caption,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -109,6 +114,7 @@ class StatCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

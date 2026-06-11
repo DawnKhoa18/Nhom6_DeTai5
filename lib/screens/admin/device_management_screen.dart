@@ -6,7 +6,14 @@ import 'package:nhom6_detai5_doancuoiki/widgets/device_card.dart';
 import 'package:nhom6_detai5_doancuoiki/screens/admin/device_form_sheet.dart';
 
 class DeviceManagementScreen extends StatefulWidget {
-  const DeviceManagementScreen({super.key});
+  final String initialKeyword;
+  final String initialStatus;
+
+  const DeviceManagementScreen({
+    super.key,
+    this.initialKeyword = '',
+    this.initialStatus = 'all',
+  });
 
   @override
   State<DeviceManagementScreen> createState() => _DeviceManagementScreenState();
@@ -16,12 +23,14 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
   final AdminApiService _apiService = const AdminApiService();
 
   late Future<List<AdminDevice>> _devicesFuture;
-  String keyword = '';
-  String selectedStatus = 'all';
+  late String keyword;
+  late String selectedStatus;
 
   @override
   void initState() {
     super.initState();
+    keyword = widget.initialKeyword;
+    selectedStatus = widget.initialStatus;
     _devicesFuture = _apiService.getDevices();
   }
 
@@ -277,7 +286,8 @@ class _InventoryHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          TextField(
+          TextFormField(
+            initialValue: keyword,
             decoration: InputDecoration(
               hintText: 'Tìm theo tên, mã tài sản, serial hoặc hãng',
               prefixIcon: const Icon(Icons.search_rounded),

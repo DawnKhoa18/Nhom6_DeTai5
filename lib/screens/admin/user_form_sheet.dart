@@ -7,12 +7,14 @@ class UserFormSheet extends StatefulWidget {
   final AdminApiService api;
   final AdminUser? user;
   final VoidCallback onSaved;
+  final bool canEditAccess;
 
   const UserFormSheet({
     super.key,
     required this.api,
     required this.user,
     required this.onSaved,
+    this.canEditAccess = true,
   });
 
   @override
@@ -184,7 +186,7 @@ class _UserFormSheetState extends State<UserFormSheet> {
                   DropdownMenuItem(value: 'nhan_vien', child: Text('Nhân viên')),
                   DropdownMenuItem(value: 'khach_hang', child: Text('Khách hàng')),
                 ],
-                onChanged: _saving ? null : (value) => setState(() {
+                onChanged: _saving || !widget.canEditAccess ? null : (value) => setState(() {
                   _role = value!;
                   if (_role != 'khach_hang') _organizationId = null;
                 }),
@@ -226,8 +228,17 @@ class _UserFormSheetState extends State<UserFormSheet> {
                   DropdownMenuItem(value: 'hoat_dong', child: Text('Hoạt động')),
                   DropdownMenuItem(value: 'tam_khoa', child: Text('Tạm khóa')),
                 ],
-                onChanged: _saving ? null : (value) => setState(() => _status = value!),
+                onChanged: _saving || !widget.canEditAccess
+                    ? null
+                    : (value) => setState(() => _status = value!),
               ),
+              if (!widget.canEditAccess) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Vai trò và trạng thái được khóa để bảo vệ quyền quản trị hệ thống.',
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12)),

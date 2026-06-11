@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_invoice.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_payment.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_rental_order.dart';
 import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
 
@@ -412,7 +413,8 @@ class _CreatePaymentSheetState extends State<_CreatePaymentSheet> {
   final TextEditingController _transactionController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
-  late Future<List<AdminInvoice>> _invoicesFuture;
+  late Future<List<dynamic>> _dataFuture;
+  AdminRentalOrder? _selectedOrder;
   AdminInvoice? _selectedInvoice;
   String _method = 'chuyen_khoan';
   bool _isSubmitting = false;
@@ -420,7 +422,10 @@ class _CreatePaymentSheetState extends State<_CreatePaymentSheet> {
   @override
   void initState() {
     super.initState();
-    _invoicesFuture = widget.apiService.getInvoices();
+    _dataFuture = Future.wait([
+      widget.apiService.getRentalOrders(),
+      widget.apiService.getInvoices(),
+    ]);
   }
 
   @override
@@ -440,8 +445,8 @@ class _CreatePaymentSheetState extends State<_CreatePaymentSheet> {
         top: 18,
         bottom: MediaQuery.of(context).viewInsets.bottom + 18,
       ),
-      child: FutureBuilder<List<AdminInvoice>>(
-        future: _invoicesFuture,
+      child: FutureBuilder<List<dynamic>>(
+        future: _dataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const SizedBox(
@@ -454,23 +459,44 @@ class _CreatePaymentSheetState extends State<_CreatePaymentSheet> {
             return SizedBox(
               height: 220,
               child: Center(
-                child: Text('Không tải được hóa đơn: ${snapshot.error}'),
+                child: Text('Không tải được dữ liệu thanh toán: ${snapshot.error}'),
               ),
             );
           }
 
-          final invoices = (snapshot.data ?? const [])
-              .where((invoice) =>
-                  invoice.status == 'chua_thanh_toan' ||
-                  invoice.status == 'thanh_toan_mot_phan')
-              .toList();
+          final data = snapshot.data ?? const [];
+          final orders = data.isNotEmpty
+              ? List<AdminRentalOrder>.from(data[0] as List)
+              : <AdminRentalOrder>[];
+          final invoices = data.length > 1
+              ? List<AdminInvoice>.from(data[1] as List)
+              : <AdminInvoice>[];
+          const payableStatuses = {
+            'da_duyet',
+            'dang_thue',
+            'yeu_cau_tra',
+            'hoan_thanh',
+            'qua_han',
+          };
+          final payableOrders = orders.where((order) {
+            if (!payableStatuses.contains(order.status)) return false;
+            for (final invoice in invoices) {
+              if (invoice.rentalOrderId == order.id &&
+                  invoice.status != 'huy' &&
+                  (invoice.status == 'da_thanh_toan' ||
+                      invoice.remainingAmount <= 0)) {
+                return false;
+              }
+            }
+            return true;
+          }).toList();
 
-          if (invoices.isEmpty) {
+          if (payableOrders.isEmpty) {
             return const SizedBox(
               height: 220,
               child: Center(
                 child: Text(
-                  'Không có hóa đơn nào cần ghi nhận thanh toán.',
+                  'Không có đơn thuê nào cần ghi nhận thanh toán.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -493,47 +519,53 @@ class _CreatePaymentSheetState extends State<_CreatePaymentSheet> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<AdminInvoice>(
-                    value: _selectedInvoice,
+                  DropdownButtonFormField<AdminRentalOrder>(
+                    value: _selectedOrder,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                      labelText: 'Hóa đơn',
+                      labelText: 'Đơn thuê',
                       border: OutlineInputBorder(),
                     ),
-                    items: invoices
+                    items: payableOrders
                         .map(
-                          (invoice) => DropdownMenuItem(
-                            value: invoice,
+                          (order) => DropdownMenuItem(
+                            value: order,
                             child: Text(
-                              '${invoice.code} • ${invoice.companyName ?? 'Không đơn vị'}',
+                              '${order.code} • ${order.companyName ?? 'Không đơn vị'}',
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         )
                         .toList(),
                     validator: (value) {
-                      if (value == null) return 'Chọn hóa đơn';
+                      if (value == null) return 'Chọn đơn thuê';
                       return null;
                     },
                     onChanged: (value) {
                       setState(() {
-                        _selectedInvoice = value;
+                        _selectedOrder = value;
+                        _selectedInvoice = null;
                         if (value != null) {
-                          _amountController.text =
-                              value.remainingAmount.toStringAsFixed(0);
+                          for (final invoice in invoices) {
+                            if (invoice.rentalOrderId == value.id &&
+                                invoice.status != 'huy') {
+                              _selectedInvoice = invoice;
+                              break;
+                            }
+                          }
+                          final remaining = _selectedInvoice?.remainingAmount ??
+                              value.grandTotal;
+                          _amountController.text = remaining.toStringAsFixed(0);
                         }
                       });
                     },
                   ),
-                  if (_selectedInvoice != null) ...[
+                  if (_selectedOrder != null) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      'Còn phải thanh toán: ${NumberFormat.decimalPattern('vi').format(_selectedInvoice!.remainingAmount)} đ',
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    _PaymentSummary(
+                      order: _selectedOrder!,
+                      remainingAmount: _selectedInvoice?.remainingAmount ??
+                          _selectedOrder!.grandTotal,
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -633,7 +665,7 @@ class _CreatePaymentSheetState extends State<_CreatePaymentSheet> {
 
     try {
       await widget.apiService.createPayment(
-        invoiceId: _selectedInvoice!.id,
+        rentalOrderId: _selectedOrder!.id,
         amount: double.parse(_amountController.text.trim()),
         method: _method,
         transactionCode: _transactionController.text.trim().isEmpty
@@ -657,6 +689,76 @@ class _CreatePaymentSheetState extends State<_CreatePaymentSheet> {
         });
       }
     }
+  }
+}
+
+class _PaymentSummary extends StatelessWidget {
+  final AdminRentalOrder order;
+  final double remainingAmount;
+
+  const _PaymentSummary({
+    required this.order,
+    required this.remainingAmount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.decimalPattern('vi');
+
+    Widget row(String label, double value, {Color? color}) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            Text(
+              '${currency.format(value)} đ',
+              style: TextStyle(
+                color: color ?? const Color(0xFF0F172A),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          row('Tiền thuê', order.rentalTotal),
+          row('Tiền đặt cọc', order.depositTotal),
+          row(
+            'Tiền hư hỏng',
+            order.compensationTotal,
+            color: order.compensationTotal > 0
+                ? const Color(0xFFDC2626)
+                : null,
+          ),
+          const Divider(height: 14),
+          row(
+            'Còn phải thanh toán',
+            remainingAmount,
+            color: const Color(0xFF1D4ED8),
+          ),
+        ],
+      ),
+    );
   }
 }
 

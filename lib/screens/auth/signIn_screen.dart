@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:nhom6_detai5_doancuoiki/screens/main_screen.dart'; // CHỈNH SỬA: Import MainScreen để chuyển hướng trang chủ
 import 'package:nhom6_detai5_doancuoiki/screens/auth/reset_password_screen.dart';
 import 'package:nhom6_detai5_doancuoiki/screens/auth/signUp_screen.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/admin/admin_dashboard_screen.dart';
+import 'package:nhom6_detai5_doancuoiki/services/auth_service.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -14,6 +16,40 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _isObscured = true;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
+  final AuthService _authService = const AuthService();
+  bool _isLoading = false;
+  String? _error;
+
+  Future<void> _login() async {
+    final account = _emailController.text.trim();
+    final password = _passController.text;
+    if (account.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Vui lòng nhập tài khoản và mật khẩu.');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final session = await _authService.login(account: account, password: password);
+      if (!mounted) return;
+      final destination = session.role == 'admin' || session.role == 'nhan_vien'
+          ? const AdminDashboardScreen()
+          : const MainScreen();
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+        (_) => false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = error.toString();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -77,8 +113,8 @@ class _SignInScreenState extends State<SignInScreen> {
               const SizedBox(height: 40),
               _buildTextField(
                 controller: _emailController,
-                hint: "Email",
-                icon: Icons.email_outlined,
+                hint: "Tên đăng nhập hoặc email",
+                icon: Icons.person_outline_rounded,
                 cursorColor: techBlue,
               ),
               const SizedBox(height: 16),
@@ -108,6 +144,13 @@ class _SignInScreenState extends State<SignInScreen> {
 
               const SizedBox(height: 24),
               _buildMainButton("Đăng nhập", techBlue, techDarkBlue),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12),
+                ),
+              ],
               const SizedBox(height: 32),
               const Center(
                 child: Text(
@@ -219,25 +262,25 @@ class _SignInScreenState extends State<SignInScreen> {
         ],
       ),
       child: ElevatedButton(
-        onPressed: () {
-          // CHỈNH SỬA: Khi bấm đăng nhập thành công sẽ nhảy vào MainScreen chứa thanh điều hướng tổng
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const MainScreen()),
-          );
-        },
+        onPressed: _isLoading ? null : _login,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
         ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
     );
   }

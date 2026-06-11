@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_dashboard.dart';
+import 'package:nhom6_detai5_doancuoiki/models/admin_rental_order.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/admin/device_management_screen.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/admin/maintenance_management_screen.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/admin/rental_orders_screen_admin.dart';
 import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/stat_card.dart';
@@ -26,6 +30,56 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() {
       _dashboardFuture = _apiService.getDashboard();
     });
+  }
+
+  void _openScreen(Widget screen) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
+  Future<void> _openReminder(DashboardReminder reminder) async {
+    if (reminder.type == 'rental_due') {
+      try {
+        final orders = await _apiService.getRentalOrders();
+        AdminRentalOrder? selected;
+        for (final order in orders) {
+          if (order.id == reminder.id) {
+            selected = order;
+            break;
+          }
+        }
+        if (!mounted) return;
+        if (selected == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy đơn thuê cần mở.')),
+          );
+          return;
+        }
+        _openScreen(RentalOrderDetailScreen(order: selected));
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không mở được đơn thuê: $error')),
+        );
+      }
+      return;
+    }
+
+    final assetCode = reminder.title;
+    if (reminder.status == 'bao_tri') {
+      _openScreen(
+        MaintenanceManagementScreen(
+          initialKeyword: assetCode,
+          initialStatus: 'dang_bao_tri',
+        ),
+      );
+    } else {
+      _openScreen(
+        DeviceManagementScreen(
+          initialKeyword: assetCode,
+          initialStatus: reminder.status ?? 'all',
+        ),
+      );
+    }
   }
 
   @override
@@ -75,11 +129,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   const _HeroPanel(),
                   const SizedBox(height: 18),
-                  _StatsGrid(dashboard: dashboard),
+                  _StatsGrid(
+                    dashboard: dashboard,
+                    onAllDevices: () =>
+                        _openScreen(const DeviceManagementScreen()),
+                    onRentedDevices: () => _openScreen(
+                      const DeviceManagementScreen(initialStatus: 'dang_thue'),
+                    ),
+                    onMaintenanceDevices: () => _openScreen(
+                      const MaintenanceManagementScreen(
+                        initialStatus: 'dang_bao_tri',
+                      ),
+                    ),
+                    onAvailableDevices: () => _openScreen(
+                      const DeviceManagementScreen(initialStatus: 'san_sang'),
+                    ),
+                  ),
                   const SizedBox(height: 18),
                   _StatusAndRevenuePanel(dashboard: dashboard),
                   const SizedBox(height: 18),
-                  _ReminderPanel(dashboard: dashboard),
+                  _ReminderPanel(
+                    dashboard: dashboard,
+                    onReminderTap: _openReminder,
+                  ),
                 ],
               ),
             ),
@@ -138,8 +210,18 @@ class _HeroPanel extends StatelessWidget {
 
 class _StatsGrid extends StatelessWidget {
   final AdminDashboard dashboard;
+  final VoidCallback onAllDevices;
+  final VoidCallback onRentedDevices;
+  final VoidCallback onMaintenanceDevices;
+  final VoidCallback onAvailableDevices;
 
-  const _StatsGrid({required this.dashboard});
+  const _StatsGrid({
+    required this.dashboard,
+    required this.onAllDevices,
+    required this.onRentedDevices,
+    required this.onMaintenanceDevices,
+    required this.onAvailableDevices,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +233,7 @@ class _StatsGrid extends StatelessWidget {
         startColor: const Color(0xFF1D4ED8),
         endColor: const Color(0xFF60A5FA),
         caption: 'Trong kho',
+        onTap: onAllDevices,
       ),
       (
         title: 'Đang cho thuê',
@@ -159,6 +242,7 @@ class _StatsGrid extends StatelessWidget {
         startColor: const Color(0xFF4F46E5),
         endColor: const Color(0xFFA78BFA),
         caption: 'Đang chạy',
+        onTap: onRentedDevices,
       ),
       (
         title: 'Bảo trì',
@@ -167,6 +251,7 @@ class _StatsGrid extends StatelessWidget {
         startColor: const Color(0xFFEA580C),
         endColor: const Color(0xFFF59E0B),
         caption: 'Cần xử lý',
+        onTap: onMaintenanceDevices,
       ),
       (
         title: 'Sẵn sàng',
@@ -175,6 +260,7 @@ class _StatsGrid extends StatelessWidget {
         startColor: const Color(0xFF059669),
         endColor: const Color(0xFF34D399),
         caption: 'Có thể thuê',
+        onTap: onAvailableDevices,
       ),
     ];
 
@@ -205,6 +291,7 @@ class _StatsGrid extends StatelessWidget {
               startColor: stat.startColor,
               endColor: stat.endColor,
               caption: stat.caption,
+              onTap: stat.onTap,
             );
           },
         );
@@ -343,8 +430,12 @@ class _StatusAndRevenuePanel extends StatelessWidget {
 
 class _ReminderPanel extends StatelessWidget {
   final AdminDashboard dashboard;
+  final ValueChanged<DashboardReminder> onReminderTap;
 
-  const _ReminderPanel({required this.dashboard});
+  const _ReminderPanel({
+    required this.dashboard,
+    required this.onReminderTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -373,7 +464,10 @@ class _ReminderPanel extends StatelessWidget {
                   .map(
                     (item) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: _ReminderTile(reminder: item),
+                      child: _ReminderTile(
+                        reminder: item,
+                        onTap: () => onReminderTap(item),
+                      ),
                     ),
                   )
                   .toList(),
@@ -492,8 +586,9 @@ class _StatusRow extends StatelessWidget {
 
 class _ReminderTile extends StatelessWidget {
   final DashboardReminder reminder;
+  final VoidCallback onTap;
 
-  const _ReminderTile({required this.reminder});
+  const _ReminderTile({required this.reminder, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -504,13 +599,15 @@ class _ReminderTile extends StatelessWidget {
         ? 'Thiết bị cần kiểm tra: ${reminder.status ?? ''}'
         : 'Hạn dự kiến: ${_formatDate(reminder.dueDate)}';
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+    return Material(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -552,7 +649,13 @@ class _ReminderTile extends StatelessWidget {
               ],
             ),
           ),
-        ],
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF94A3B8),
+            ),
+          ],
+          ),
+        ),
       ),
     );
   }

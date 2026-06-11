@@ -14,7 +14,6 @@ class InvoiceManagementScreen extends StatefulWidget {
 
 class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
   final AdminApiService _apiService = const AdminApiService();
-
   late Future<List<AdminInvoice>> _invoicesFuture;
   String selectedStatus = 'all';
   String keyword = '';
@@ -26,9 +25,19 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
   }
 
   void _reload() {
-    setState(() {
-      _invoicesFuture = _apiService.getInvoices();
-    });
+    setState(() => _invoicesFuture = _apiService.getInvoices());
+  }
+
+  void _showDetails(AdminInvoice invoice) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _InvoiceDetailSheet(invoice: invoice),
+    );
   }
 
   @override
@@ -57,10 +66,8 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-
           if (snapshot.hasError) {
             return _ErrorState(
-              message: 'Không tải được danh sách hóa đơn.',
               detail: snapshot.error.toString(),
               onRetry: _reload,
             );
@@ -68,7 +75,6 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
 
           final invoices = snapshot.data ?? const [];
           final filtered = invoices.where(_matchesFilter).toList();
-
           return RefreshIndicator(
             onRefresh: () async => _reload(),
             child: ListView(
@@ -78,14 +84,10 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
                   invoices: invoices,
                   selectedStatus: selectedStatus,
                   onStatusChanged: (value) {
-                    setState(() {
-                      selectedStatus = value;
-                    });
+                    setState(() => selectedStatus = value);
                   },
                   onKeywordChanged: (value) {
-                    setState(() {
-                      keyword = value;
-                    });
+                    setState(() => keyword = value);
                   },
                 ),
                 const SizedBox(height: 18),
@@ -101,21 +103,11 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '${filtered.length} mục',
-                        style: const TextStyle(
-                          color: Color(0xFF334155),
-                          fontWeight: FontWeight.w700,
-                        ),
+                    Text(
+                      '${filtered.length} mục',
+                      style: const TextStyle(
+                        color: Color(0xFF475569),
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -124,7 +116,12 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
                 if (filtered.isEmpty)
                   const _EmptyState()
                 else
-                  ...filtered.map((invoice) => _InvoiceCard(invoice: invoice)),
+                  ...filtered.map(
+                    (invoice) => _InvoiceCard(
+                      invoice: invoice,
+                      onTap: () => _showDetails(invoice),
+                    ),
+                  ),
               ],
             ),
           );
@@ -134,15 +131,13 @@ class _InvoiceManagementScreenState extends State<InvoiceManagementScreen> {
   }
 
   bool _matchesFilter(AdminInvoice invoice) {
-    final normalizedKeyword = keyword.trim().toLowerCase();
-    final matchesKeyword = normalizedKeyword.isEmpty ||
-        invoice.code.toLowerCase().contains(normalizedKeyword) ||
-        (invoice.rentalOrderCode ?? '').toLowerCase().contains(normalizedKeyword) ||
-        (invoice.companyName ?? '').toLowerCase().contains(normalizedKeyword);
-
+    final search = keyword.trim().toLowerCase();
+    final matchesKeyword = search.isEmpty ||
+        invoice.code.toLowerCase().contains(search) ||
+        (invoice.rentalOrderCode ?? '').toLowerCase().contains(search) ||
+        (invoice.companyName ?? '').toLowerCase().contains(search);
     final matchesStatus =
         selectedStatus == 'all' || invoice.status == selectedStatus;
-
     return matchesKeyword && matchesStatus;
   }
 }
@@ -162,22 +157,12 @@ class _HeaderPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = invoices.fold<double>(0, (sum, item) => sum + item.totalAmount);
-    final currency = NumberFormat.decimalPattern('vi');
-
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,31 +176,23 @@ class _HeaderPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'Tổng giá trị hóa đơn hiện có: ${currency.format(total)} đ',
-            style: const TextStyle(
-              color: Color(0xFF475569),
-              fontSize: 14,
-              height: 1.45,
-            ),
+          const Text(
+            'Hóa đơn được tự động sinh khi ghi nhận thanh toán.',
+            style: TextStyle(color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 16),
           TextField(
+            onChanged: onKeywordChanged,
             decoration: InputDecoration(
-              hintText: 'Tìm theo mã hóa đơn, mã đơn thuê hoặc đơn vị',
+              hintText: 'Tìm mã hóa đơn, đơn thuê hoặc đơn vị',
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
             ),
-            onChanged: onKeywordChanged,
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -234,22 +211,16 @@ class _HeaderPanel extends StatelessWidget {
                 color: const Color(0xFFEA580C),
               ),
               _FilterChip(
-                label: 'Đã thanh toán ${_count('da_thanh_toan')}',
-                selected: selectedStatus == 'da_thanh_toan',
-                onTap: () => onStatusChanged('da_thanh_toan'),
-                color: const Color(0xFF059669),
-              ),
-              _FilterChip(
                 label: 'Một phần ${_count('thanh_toan_mot_phan')}',
                 selected: selectedStatus == 'thanh_toan_mot_phan',
                 onTap: () => onStatusChanged('thanh_toan_mot_phan'),
                 color: const Color(0xFF2563EB),
               ),
               _FilterChip(
-                label: 'Hủy ${_count('huy')}',
-                selected: selectedStatus == 'huy',
-                onTap: () => onStatusChanged('huy'),
-                color: const Color(0xFFDC2626),
+                label: 'Đã thanh toán ${_count('da_thanh_toan')}',
+                selected: selectedStatus == 'da_thanh_toan',
+                onTap: () => onStatusChanged('da_thanh_toan'),
+                color: const Color(0xFF059669),
               ),
             ],
           ),
@@ -258,116 +229,163 @@ class _HeaderPanel extends StatelessWidget {
     );
   }
 
-  int _count(String status) {
-    return invoices.where((invoice) => invoice.status == status).length;
-  }
+  int _count(String status) =>
+      invoices.where((invoice) => invoice.status == status).length;
 }
 
 class _InvoiceCard extends StatelessWidget {
   final AdminInvoice invoice;
+  final VoidCallback onTap;
 
-  const _InvoiceCard({required this.invoice});
+  const _InvoiceCard({required this.invoice, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.decimalPattern('vi');
-    final dateFormat = DateFormat('dd/MM/yyyy');
-    final statusColor = _statusColor(invoice.status);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
+    final color = _statusColor(invoice.status);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(Icons.receipt_long_rounded, color: statusColor),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            invoice.code,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
+                    Icon(Icons.receipt_long_rounded, color: color),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        invoice.code,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
                         ),
-                        _Badge(
-                          label: _statusText(invoice.status),
-                          color: statusColor,
-                        ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    _Badge(label: _statusText(invoice.status), color: color),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${invoice.rentalOrderCode ?? 'Không mã đơn'} • ${invoice.companyName ?? 'Không đơn vị'}',
+                  style: const TextStyle(color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Tổng thanh toán')),
                     Text(
-                      '${invoice.rentalOrderCode ?? 'Không mã đơn'} • ${invoice.companyName ?? 'Không đơn vị'}',
+                      '${currency.format(invoice.totalAmount)} đ',
                       style: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1D4ED8),
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          _MoneyRow(label: 'Tiền thuê', value: invoice.rentalAmount),
-          _MoneyRow(label: 'Tiền đặt cọc', value: invoice.depositAmount),
-          _MoneyRow(label: 'Tiền đền bù', value: invoice.compensationAmount),
-          const Divider(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Ngày lập: ${dateFormat.format(invoice.createdAt)}',
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _InvoiceDetailSheet extends StatelessWidget {
+  final AdminInvoice invoice;
+
+  const _InvoiceDetailSheet({required this.invoice});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Chi tiết hóa đơn',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
                   ),
                 ),
-              ),
-              Text(
-                '${currency.format(invoice.totalAmount)} đ',
-                style: const TextStyle(
-                  color: Color(0xFF1D4ED8),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
+                IconButton(
+                  tooltip: 'Đóng',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
                 ),
-              ),
-            ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            _DetailRow(label: 'Mã hóa đơn', value: invoice.code),
+            _DetailRow(
+              label: 'Đơn thuê',
+              value: invoice.rentalOrderCode ?? 'Không có mã',
+            ),
+            _DetailRow(
+              label: 'Đơn vị',
+              value: invoice.companyName ?? 'Không có đơn vị',
+            ),
+            _DetailRow(
+              label: 'Ngày lập',
+              value: DateFormat('dd/MM/yyyy').format(invoice.createdAt),
+            ),
+            _DetailRow(
+              label: 'Trạng thái',
+              value: _statusText(invoice.status),
+            ),
+            const Divider(height: 28),
+            _MoneyRow(label: 'Tiền thuê', value: invoice.rentalAmount),
+            _MoneyRow(label: 'Tiền đặt cọc', value: invoice.depositAmount),
+            _MoneyRow(label: 'Tiền hư hỏng', value: invoice.compensationAmount),
+            _MoneyRow(label: 'Tổng thanh toán', value: invoice.totalAmount),
+            _MoneyRow(label: 'Đã thanh toán', value: invoice.paidAmount),
+            _MoneyRow(label: 'Còn lại', value: invoice.remainingAmount),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(label, style: const TextStyle(color: Color(0xFF64748B))),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -379,31 +397,18 @@ class _MoneyRow extends StatelessWidget {
   final String label;
   final double value;
 
-  const _MoneyRow({
-    required this.label,
-    required this.value,
-  });
+  const _MoneyRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.decimalPattern('vi');
-
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(color: Color(0xFF64748B)),
-            ),
-          ),
+          Expanded(child: Text(label, style: const TextStyle(color: Color(0xFF64748B)))),
           Text(
-            '${currency.format(value)} đ',
-            style: const TextStyle(
-              color: Color(0xFF0F172A),
-              fontWeight: FontWeight.w800,
-            ),
+            '${NumberFormat.decimalPattern('vi').format(value)} đ',
+            style: const TextStyle(fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -427,16 +432,13 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(999),
       onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? color.withOpacity(0.12) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? color.withOpacity(0.35) : Colors.transparent,
-          ),
         ),
         child: Text(
           label,
@@ -455,41 +457,30 @@ class _Badge extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _Badge({
-    required this.label,
-    required this.color,
-  });
+  const _Badge({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900),
       ),
     );
   }
 }
 
 class _ErrorState extends StatelessWidget {
-  final String message;
   final String detail;
   final VoidCallback onRetry;
 
-  const _ErrorState({
-    required this.message,
-    required this.detail,
-    required this.onRetry,
-  });
+  const _ErrorState({required this.detail, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -499,22 +490,12 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 42, color: Colors.grey),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
+            const Text(
+              'Không tải được danh sách hóa đơn.',
+              style: TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
-            Text(
-              detail,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
-            ),
+            Text(detail, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onRetry,
@@ -533,18 +514,9 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Center(
-        child: Text(
-          'Không có hóa đơn phù hợp với bộ lọc hiện tại.',
-          style: TextStyle(color: Color(0xFF64748B)),
-        ),
-      ),
+    return const Padding(
+      padding: EdgeInsets.all(24),
+      child: Center(child: Text('Không có hóa đơn phù hợp.')),
     );
   }
 }
@@ -553,10 +525,10 @@ String _statusText(String status) {
   switch (status) {
     case 'chua_thanh_toan':
       return 'Chưa thanh toán';
-    case 'da_thanh_toan':
-      return 'Đã thanh toán';
     case 'thanh_toan_mot_phan':
       return 'Thanh toán một phần';
+    case 'da_thanh_toan':
+      return 'Đã thanh toán';
     case 'huy':
       return 'Hủy';
     default:
@@ -568,10 +540,10 @@ Color _statusColor(String status) {
   switch (status) {
     case 'chua_thanh_toan':
       return const Color(0xFFEA580C);
-    case 'da_thanh_toan':
-      return const Color(0xFF059669);
     case 'thanh_toan_mot_phan':
       return const Color(0xFF2563EB);
+    case 'da_thanh_toan':
+      return const Color(0xFF059669);
     case 'huy':
       return const Color(0xFFDC2626);
     default:

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nhom6_detai5_doancuoiki/screens/main_screen.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/auth/welcome_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
       ),
-      home: const MainScreen(),
+      home: const WelcomeScreen(),
     );
   }
 }

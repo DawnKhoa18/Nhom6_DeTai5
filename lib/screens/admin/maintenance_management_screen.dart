@@ -6,7 +6,14 @@ import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
 
 class MaintenanceManagementScreen extends StatefulWidget {
-  const MaintenanceManagementScreen({super.key});
+  final String initialKeyword;
+  final String initialStatus;
+
+  const MaintenanceManagementScreen({
+    super.key,
+    this.initialKeyword = '',
+    this.initialStatus = 'all',
+  });
 
   @override
   State<MaintenanceManagementScreen> createState() =>
@@ -18,12 +25,14 @@ class _MaintenanceManagementScreenState
   final AdminApiService _apiService = const AdminApiService();
 
   late Future<List<AdminMaintenance>> _maintenancesFuture;
-  String selectedStatus = 'all';
-  String keyword = '';
+  late String selectedStatus;
+  late String keyword;
 
   @override
   void initState() {
     super.initState();
+    selectedStatus = widget.initialStatus;
+    keyword = widget.initialKeyword;
     _maintenancesFuture = _apiService.getMaintenances();
   }
 
@@ -125,6 +134,7 @@ class _MaintenanceManagementScreenState
                 _HeaderPanel(
                   maintenances: maintenances,
                   selectedStatus: selectedStatus,
+                  keyword: keyword,
                   onStatusChanged: (value) {
                     setState(() {
                       selectedStatus = value;
@@ -175,6 +185,10 @@ class _MaintenanceManagementScreenState
                   ...filtered.map(
                     (maintenance) => _MaintenanceCard(
                       maintenance: maintenance,
+                      onView: () => _showMaintenanceDetails(maintenance),
+                      onEdit: maintenance.status == 'dang_bao_tri'
+                          ? () => _showMaintenanceForm(maintenance)
+                          : null,
                       onStatusChanged: (nextStatus) {
                         _changeMaintenanceStatus(maintenance, nextStatus);
                       },
@@ -201,7 +215,9 @@ class _MaintenanceManagementScreenState
     return matchesKeyword && matchesStatus;
   }
 
-  void _showCreateMaintenanceSheet() {
+  void _showCreateMaintenanceSheet() => _showMaintenanceForm();
+
+  void _showMaintenanceForm([AdminMaintenance? maintenance]) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -212,15 +228,41 @@ class _MaintenanceManagementScreenState
       builder: (context) {
         return _CreateMaintenanceSheet(
           apiService: _apiService,
+          maintenance: maintenance,
           onCreated: () {
             Navigator.pop(context);
             _reload();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Đã tạo phiếu bảo trì.')),
+              SnackBar(
+                content: Text(
+                  maintenance == null
+                      ? 'Đã tạo phiếu bảo trì.'
+                      : 'Đã cập nhật phiếu bảo trì.',
+                ),
+              ),
             );
           },
         );
       },
+    );
+  }
+
+  void _showMaintenanceDetails(AdminMaintenance maintenance) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _MaintenanceDetailSheet(
+        maintenance: maintenance,
+        onEdit: maintenance.status == 'dang_bao_tri'
+            ? () {
+                Navigator.pop(context);
+                _showMaintenanceForm(maintenance);
+              }
+            : null,
+      ),
     );
   }
 }
@@ -228,10 +270,12 @@ class _MaintenanceManagementScreenState
 class _CreateMaintenanceSheet extends StatefulWidget {
   final AdminApiService apiService;
   final VoidCallback onCreated;
+  final AdminMaintenance? maintenance;
 
   const _CreateMaintenanceSheet({
     required this.apiService,
     required this.onCreated,
+    this.maintenance,
   });
 
   @override
@@ -253,6 +297,12 @@ class _CreateMaintenanceSheetState extends State<_CreateMaintenanceSheet> {
   void initState() {
     super.initState();
     _devicesFuture = widget.apiService.getDevices();
+    final maintenance = widget.maintenance;
+    if (maintenance != null) {
+      _contentController.text = maintenance.content;
+      _costController.text = maintenance.cost.toStringAsFixed(0);
+      _startDate = maintenance.startDate;
+    }
   }
 
   @override
@@ -293,6 +343,14 @@ class _CreateMaintenanceSheetState extends State<_CreateMaintenanceSheet> {
           }
 
           final devices = snapshot.data ?? const [];
+          if (widget.maintenance != null && _selectedDevice == null) {
+            for (final device in devices) {
+              if (device.id == widget.maintenance!.deviceId) {
+                _selectedDevice = device;
+                break;
+              }
+            }
+          }
 
           return Form(
             key: _formKey,
@@ -301,8 +359,10 @@ class _CreateMaintenanceSheetState extends State<_CreateMaintenanceSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Tạo phiếu bảo trì',
+                  Text(
+                    widget.maintenance == null
+                        ? 'Tạo phiếu bảo trì'
+                        : 'Chỉnh sửa phiếu bảo trì',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
@@ -403,7 +463,9 @@ class _CreateMaintenanceSheetState extends State<_CreateMaintenanceSheet> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.save_rounded),
-                      label: const Text('Tạo phiếu'),
+                      label: Text(
+                        widget.maintenance == null ? 'Tạo phiếu' : 'Lưu thay đổi',
+                      ),
                     ),
                   ),
                 ],
@@ -438,18 +500,28 @@ class _CreateMaintenanceSheetState extends State<_CreateMaintenanceSheet> {
     });
 
     try {
-      await widget.apiService.createMaintenance(
-        deviceId: _selectedDevice!.id,
-        startDate: _startDate,
-        content: _contentController.text.trim(),
-        cost: double.parse(_costController.text.trim()),
-      );
+      if (widget.maintenance == null) {
+        await widget.apiService.createMaintenance(
+          deviceId: _selectedDevice!.id,
+          startDate: _startDate,
+          content: _contentController.text.trim(),
+          cost: double.parse(_costController.text.trim()),
+        );
+      } else {
+        await widget.apiService.updateMaintenance(
+          maintenanceId: widget.maintenance!.id,
+          deviceId: _selectedDevice!.id,
+          startDate: _startDate,
+          content: _contentController.text.trim(),
+          cost: double.parse(_costController.text.trim()),
+        );
+      }
       if (!mounted) return;
       widget.onCreated();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tạo phiếu thất bại: $error')),
+        SnackBar(content: Text('Lưu phiếu thất bại: $error')),
       );
     } finally {
       if (mounted) {
@@ -461,15 +533,143 @@ class _CreateMaintenanceSheetState extends State<_CreateMaintenanceSheet> {
   }
 }
 
+class _MaintenanceDetailSheet extends StatelessWidget {
+  final AdminMaintenance maintenance;
+  final VoidCallback? onEdit;
+
+  const _MaintenanceDetailSheet({
+    required this.maintenance,
+    this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final currency = NumberFormat.decimalPattern('vi');
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Chi tiết phiếu bảo trì',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Đóng',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _MaintenanceDetailRow(label: 'Mã phiếu', value: '#${maintenance.id}'),
+            _MaintenanceDetailRow(
+              label: 'Thiết bị',
+              value: maintenance.displayDeviceName,
+            ),
+            _MaintenanceDetailRow(
+              label: 'Mã tài sản',
+              value: maintenance.assetCode ?? 'Không có',
+            ),
+            _MaintenanceDetailRow(
+              label: 'Bắt đầu',
+              value: dateFormat.format(maintenance.startDate),
+            ),
+            _MaintenanceDetailRow(
+              label: 'Kết thúc',
+              value: maintenance.endDate == null
+                  ? 'Chưa kết thúc'
+                  : dateFormat.format(maintenance.endDate!),
+            ),
+            _MaintenanceDetailRow(
+              label: 'Trạng thái',
+              value: _statusText(maintenance.status),
+            ),
+            _MaintenanceDetailRow(
+              label: 'Chi phí',
+              value: '${currency.format(maintenance.cost)} đ',
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Nội dung bảo trì',
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              maintenance.content,
+              style: const TextStyle(
+                color: Color(0xFF0F172A),
+                fontWeight: FontWeight.w700,
+                height: 1.45,
+              ),
+            ),
+            if (onEdit != null) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_rounded),
+                  label: const Text('Chỉnh sửa phiếu'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MaintenanceDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MaintenanceDetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label, style: const TextStyle(color: Color(0xFF64748B))),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HeaderPanel extends StatelessWidget {
   final List<AdminMaintenance> maintenances;
   final String selectedStatus;
+  final String keyword;
   final ValueChanged<String> onStatusChanged;
   final ValueChanged<String> onKeywordChanged;
 
   const _HeaderPanel({
     required this.maintenances,
     required this.selectedStatus,
+    required this.keyword,
     required this.onStatusChanged,
     required this.onKeywordChanged,
   });
@@ -511,7 +711,8 @@ class _HeaderPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          TextField(
+          TextFormField(
+            initialValue: keyword,
             decoration: InputDecoration(
               hintText: 'Tìm theo mã máy, tên máy hoặc nội dung bảo trì',
               prefixIcon: const Icon(Icons.search_rounded),
@@ -571,10 +772,14 @@ class _HeaderPanel extends StatelessWidget {
 class _MaintenanceCard extends StatelessWidget {
   final AdminMaintenance maintenance;
   final ValueChanged<String> onStatusChanged;
+  final VoidCallback onView;
+  final VoidCallback? onEdit;
 
   const _MaintenanceCard({
     required this.maintenance,
     required this.onStatusChanged,
+    required this.onView,
+    this.onEdit,
   });
 
   @override
@@ -682,6 +887,11 @@ class _MaintenanceCard extends StatelessWidget {
                     runSpacing: 8,
                     children: [
                       OutlinedButton.icon(
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_rounded, size: 18),
+                        label: const Text('Chỉnh sửa'),
+                      ),
+                      OutlinedButton.icon(
                         onPressed: () => onStatusChanged('hoan_thanh'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF059669),
@@ -712,6 +922,12 @@ class _MaintenanceCard extends StatelessWidget {
                     ],
                   ),
                 ],
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: onView,
+                  icon: const Icon(Icons.visibility_rounded, size: 18),
+                  label: const Text('Xem chi tiết'),
+                ),
               ],
             ),
           ),

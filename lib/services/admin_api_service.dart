@@ -673,6 +673,15 @@ class AdminApiService {
     _throwIfFailed(response);
   }
 
+  Future<void> resetUserPassword(int id, String temporaryPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/admin/users/$id/reset-password'),
+      headers: _headers,
+      body: jsonEncode({'temporaryPassword': temporaryPassword}),
+    );
+    _throwIfFailed(response);
+  }
+
   Future<void> updateContract({
     required int id,
     required String code,
@@ -777,6 +786,19 @@ class AdminApiService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('API ${response.statusCode}: ${response.body}');
     }
+  }
+
+  Future<void> adjustPayment({
+    required int paymentId,
+    required double amount,
+    required String reason,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/admin/payments/$paymentId/adjustments'),
+      headers: _headers,
+      body: jsonEncode({'soTien': amount, 'lyDo': reason}),
+    );
+    _throwIfFailed(response);
   }
 
   Future<http.Response> _get(String path) async {

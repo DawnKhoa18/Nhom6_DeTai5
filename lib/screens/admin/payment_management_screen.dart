@@ -155,7 +155,14 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
                 if (filtered.isEmpty)
                   const _EmptyState()
                 else
-                  ...filtered.map((payment) => _PaymentCard(payment: payment)),
+                  ...filtered.map(
+                    (payment) => _PaymentCard(
+                      payment: payment,
+                      onAdjust: payment.isAdjustment
+                          ? null
+                          : () => _showAdjustmentDialog(payment),
+                    ),
+                  ),
               ],
             ),
           );
@@ -176,6 +183,22 @@ class _PaymentManagementScreenState extends State<PaymentManagementScreen> {
         selectedMethod == 'all' || payment.method == selectedMethod;
 
     return matchesKeyword && matchesMethod;
+  }
+
+  Future<void> _showAdjustmentDialog(AdminPayment payment) async {
+    final adjusted = await showDialog<bool>(
+      context: context,
+      builder: (context) => _PaymentAdjustmentDialog(
+        apiService: _apiService,
+        payment: payment,
+      ),
+    );
+    if (adjusted != true || !mounted) return;
+
+    _reload();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Đã ghi nhận điều chỉnh thanh toán.')),
+    );
   }
 }
 
@@ -291,14 +314,17 @@ class _HeaderPanel extends StatelessWidget {
 
 class _PaymentCard extends StatelessWidget {
   final AdminPayment payment;
+  final VoidCallback? onAdjust;
 
-  const _PaymentCard({required this.payment});
+  const _PaymentCard({required this.payment, this.onAdjust});
 
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.decimalPattern('vi');
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    final color = _methodColor(payment.method);
+    final color = payment.isAdjustment
+        ? const Color(0xFFDC2626)
+        : _methodColor(payment.method);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -345,7 +371,12 @@ class _PaymentCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    _Badge(label: _methodText(payment.method), color: color),
+                    _Badge(
+                      label: payment.isAdjustment
+                          ? 'Điều chỉnh'
+                          : _methodText(payment.method),
+                      color: color,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -385,12 +416,145 @@ class _PaymentCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (onAdjust != null) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: onAdjust,
+                    icon: const Icon(Icons.edit_note_rounded),
+                    label: const Text('Điều chỉnh giao dịch'),
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _PaymentAdjustmentDialog extends StatefulWidget {
+  final AdminApiService apiService;
+  final AdminPayment payment;
+
+  const _PaymentAdjustmentDialog({
+    required this.apiService,
+    required this.payment,
+  });
+
+  @override
+  State<_PaymentAdjustmentDialog> createState() =>
+      _PaymentAdjustmentDialogState();
+}
+
+class _PaymentAdjustmentDialogState extends State<_PaymentAdjustmentDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _amountController = TextEditingController();
+  final _reasonController = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = NumberFormat.decimalPattern('vi');
+    return AlertDialog(
+      title: const Text('Điều chỉnh thanh toán'),
+      content: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Giao dịch #${widget.payment.id}: '
+                '${currency.format(widget.payment.amount)} đ',
+                style: const TextStyle(
+                  color: Color(0xFF475569),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Số tiền cần điều chỉnh',
+                  suffixText: 'đ',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  final amount = _parseAmount(value);
+                  if (amount == null || amount <= 0) {
+                    return 'Nhập số tiền lớn hơn 0';
+                  }
+                  if (amount > widget.payment.amount) {
+                    return 'Không vượt quá giao dịch ban đầu';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _reasonController,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Lý do điều chỉnh',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => (value ?? '').trim().isEmpty
+                    ? 'Vui lòng nhập lý do'
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _submit,
+          child: Text(_saving ? 'Đang lưu...' : 'Xác nhận'),
+        ),
+      ],
+    );
+  }
+
+  double? _parseAmount(String? value) {
+    return double.tryParse(
+      (value ?? '').replaceAll('.', '').replaceAll(',', ''),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await widget.apiService.adjustPayment(
+        paymentId: widget.payment.id,
+        amount: _parseAmount(_amountController.text)!,
+        reason: _reasonController.text.trim(),
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 }
 

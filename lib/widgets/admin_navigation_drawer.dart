@@ -18,6 +18,7 @@ import '../screens/admin/return_request_management_screen.dart';
 import '../screens/admin/user_management_screen.dart';
 import '../screens/auth/welcome_screen.dart';
 import '../services/auth_service.dart';
+import 'password_dialogs.dart';
 
 class AdminNavigationDrawer extends StatelessWidget {
   final AdminSection currentSection;
@@ -259,6 +260,19 @@ class AdminNavigationDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               const Divider(),
+              ListTile(
+                leading: const Icon(Icons.password_rounded),
+                title: const Text('Đổi mật khẩu'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final changed = await showChangePasswordDialog(context);
+                  if (changed && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Đã đổi mật khẩu.')),
+                    );
+                  }
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.logout_rounded),
                 title: const Text('Đăng xuất'),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nhom6_detai5_doancuoiki/models/admin_user.dart';
 import 'package:nhom6_detai5_doancuoiki/services/admin_api_service.dart';
+import 'package:nhom6_detai5_doancuoiki/services/auth_service.dart';
 import 'package:nhom6_detai5_doancuoiki/widgets/admin_navigation_drawer.dart';
 import 'package:nhom6_detai5_doancuoiki/screens/admin/user_form_sheet.dart';
 
@@ -32,7 +33,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     });
   }
 
-  void _showForm([AdminUser? user]) {
+  void _showForm([AdminUser? user, bool canEditAccess = true]) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -43,6 +44,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       builder: (sheetContext) => UserFormSheet(
         api: _apiService,
         user: user,
+        canEditAccess: canEditAccess,
         onSaved: () {
           Navigator.pop(sheetContext);
           _reload();
@@ -139,6 +141,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
           final users = snapshot.data ?? const [];
           final filtered = users.where(_matchesFilter).toList();
+          final activeAdminCount = users
+              .where((user) =>
+                  user.role == 'admin' && user.status == 'hoat_dong')
+              .length;
 
           return RefreshIndicator(
             onRefresh: () async => _reload(),
@@ -202,11 +208,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const _EmptyState()
                 else
                   ...filtered.map(
-                    (user) => _UserCard(
-                      user: user,
-                      onEdit: () => _showForm(user),
-                      onToggleStatus: () => _toggleStatus(user),
-                    ),
+                    (user) {
+                      final isCurrentUser =
+                          user.id == SessionManager.current?.userId;
+                      final isLastActiveAdmin = user.role == 'admin' &&
+                          user.status == 'hoat_dong' &&
+                          activeAdminCount == 1;
+                      final canChangeAccess =
+                          !isCurrentUser && !isLastActiveAdmin;
+                      return _UserCard(
+                        user: user,
+                        isCurrentUser: isCurrentUser,
+                        accessLocked: !canChangeAccess,
+                        onEdit: () => _showForm(user, canChangeAccess),
+                        onToggleStatus: canChangeAccess
+                            ? () => _toggleStatus(user)
+                            : null,
+                      );
+                    },
                   ),
               ],
             ),
@@ -393,12 +412,16 @@ class _HeaderPanel extends StatelessWidget {
 class _UserCard extends StatelessWidget {
   final AdminUser user;
   final VoidCallback onEdit;
-  final VoidCallback onToggleStatus;
+  final VoidCallback? onToggleStatus;
+  final bool isCurrentUser;
+  final bool accessLocked;
 
   const _UserCard({
     required this.user,
     required this.onEdit,
     required this.onToggleStatus,
+    required this.isCurrentUser,
+    required this.accessLocked,
   });
 
   @override
@@ -460,21 +483,22 @@ class _UserCard extends StatelessWidget {
                       tooltip: 'Thao tác',
                       onSelected: (value) {
                         if (value == 'edit') onEdit();
-                        if (value == 'status') onToggleStatus();
+                        if (value == 'status') onToggleStatus?.call();
                       },
                       itemBuilder: (_) => [
                         const PopupMenuItem(
                           value: 'edit',
                           child: Text('Sửa tài khoản'),
                         ),
-                        PopupMenuItem(
-                          value: 'status',
-                          child: Text(
-                            user.status == 'hoat_dong'
-                                ? 'Khóa tài khoản'
-                                : 'Mở khóa tài khoản',
+                        if (!accessLocked)
+                          PopupMenuItem(
+                            value: 'status',
+                            child: Text(
+                              user.status == 'hoat_dong'
+                                  ? 'Khóa tài khoản'
+                                  : 'Mở khóa tài khoản',
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ],
@@ -488,6 +512,19 @@ class _UserCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                if (isCurrentUser || accessLocked) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    isCurrentUser
+                        ? 'Tài khoản đang đăng nhập'
+                        : 'Admin hoạt động cuối cùng',
+                    style: const TextStyle(
+                      color: Color(0xFFB45309),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,

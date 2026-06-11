@@ -115,6 +115,7 @@ class MonthlyRevenue {
 }
 
 class DashboardReminder {
+  final int id;
   final String type;
   final String title;
   final String? deviceName;
@@ -122,6 +123,7 @@ class DashboardReminder {
   final DateTime? dueDate;
 
   const DashboardReminder({
+    required this.id,
     required this.type,
     required this.title,
     required this.deviceName,
@@ -131,6 +133,7 @@ class DashboardReminder {
 
   factory DashboardReminder.fromJson(Map<String, dynamic> json) {
     return DashboardReminder(
+      id: json['id'] as int? ?? 0,
       type: json['type'] as String? ?? '',
       title: json['title'] as String? ?? '',
       deviceName: json['deviceName'] as String?,

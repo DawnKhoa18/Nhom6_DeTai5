@@ -12,9 +12,12 @@ import '../screens/admin/invoice_management_screen.dart';
 import '../screens/admin/maintenance_management_screen.dart';
 import '../screens/admin/organization_management_screen.dart';
 import '../screens/admin/payment_management_screen.dart';
+import '../screens/admin/report_screen.dart';
 import '../screens/admin/rental_orders_screen_admin.dart';
 import '../screens/admin/return_request_management_screen.dart';
 import '../screens/admin/user_management_screen.dart';
+import '../screens/auth/welcome_screen.dart';
+import '../services/auth_service.dart';
 
 class AdminNavigationDrawer extends StatelessWidget {
   final AdminSection currentSection;
@@ -44,10 +47,10 @@ class AdminNavigationDrawer extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
+                    const CircleAvatar(
                       radius: 22,
                       backgroundColor: Colors.white24,
                       child: Icon(
@@ -55,14 +58,19 @@ class AdminNavigationDrawer extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
-                      'Menu quản trị',
-                      style: TextStyle(
+                      SessionManager.current?.fullName ?? 'Menu quản trị',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      SessionManager.isAdmin ? 'Quản trị viên' : 'Nhân viên',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ],
                 ),
@@ -103,42 +111,32 @@ class AdminNavigationDrawer extends StatelessWidget {
                 ),
                 currentSection: currentSection,
               ),
-              const SizedBox(height: 8),
-              _DrawerItem(
-                icon: Icons.manage_accounts_rounded,
-                label: 'Quản lý người dùng',
-                selected: currentSection == AdminSection.users,
-                onTap: () => _goTo(
-                  context,
-                  const UserManagementScreen(),
-                  AdminSection.users,
+              if (SessionManager.isAdmin) ...[
+                const SizedBox(height: 8),
+                _DrawerItem(
+                  icon: Icons.manage_accounts_rounded,
+                  label: 'Quản lý người dùng',
+                  selected: currentSection == AdminSection.users,
+                  onTap: () => _goTo(context, const UserManagementScreen(), AdminSection.users),
+                  currentSection: currentSection,
                 ),
-                currentSection: currentSection,
-              ),
-              const SizedBox(height: 8),
-              _DrawerItem(
-                icon: Icons.business_rounded,
-                label: 'Quản lý đơn vị',
-                selected: currentSection == AdminSection.organizations,
-                onTap: () => _goTo(
-                  context,
-                  const OrganizationManagementScreen(),
-                  AdminSection.organizations,
+                const SizedBox(height: 8),
+                _DrawerItem(
+                  icon: Icons.business_rounded,
+                  label: 'Quản lý đơn vị',
+                  selected: currentSection == AdminSection.organizations,
+                  onTap: () => _goTo(context, const OrganizationManagementScreen(), AdminSection.organizations),
+                  currentSection: currentSection,
                 ),
-                currentSection: currentSection,
-              ),
-              const SizedBox(height: 8),
-              _DrawerItem(
-                icon: Icons.category_rounded,
-                label: 'Quản lý dòng máy',
-                selected: currentSection == AdminSection.computerLines,
-                onTap: () => _goTo(
-                  context,
-                  const ComputerLineManagementScreen(),
-                  AdminSection.computerLines,
+                const SizedBox(height: 8),
+                _DrawerItem(
+                  icon: Icons.category_rounded,
+                  label: 'Quản lý dòng máy',
+                  selected: currentSection == AdminSection.computerLines,
+                  onTap: () => _goTo(context, const ComputerLineManagementScreen(), AdminSection.computerLines),
+                  currentSection: currentSection,
                 ),
-                currentSection: currentSection,
-              ),
+              ],
               const SizedBox(height: 8),
               _DrawerItem(
                 icon: Icons.build_rounded,
@@ -152,6 +150,20 @@ class AdminNavigationDrawer extends StatelessWidget {
                 currentSection: currentSection,
               ),
               const SizedBox(height: 8),
+              if (SessionManager.isAdmin) ...[
+                _DrawerItem(
+                  icon: Icons.analytics_rounded,
+                  label: 'Báo cáo thống kê',
+                  selected: currentSection == AdminSection.reports,
+                  onTap: () => _goTo(
+                    context,
+                    const ReportScreen(),
+                    AdminSection.reports,
+                  ),
+                  currentSection: currentSection,
+                ),
+                const SizedBox(height: 8),
+              ],
               _DrawerItem(
                 icon: Icons.request_quote_rounded,
                 label: 'Quản lý hóa đơn',
@@ -175,18 +187,16 @@ class AdminNavigationDrawer extends StatelessWidget {
                 ),
                 currentSection: currentSection,
               ),
-              const SizedBox(height: 8),
-              _DrawerItem(
-                icon: Icons.rule_rounded,
-                label: 'Mức độ hư hỏng',
-                selected: currentSection == AdminSection.damageLevels,
-                onTap: () => _goTo(
-                  context,
-                  const DamageLevelManagementScreen(),
-                  AdminSection.damageLevels,
+              if (SessionManager.isAdmin) ...[
+                const SizedBox(height: 8),
+                _DrawerItem(
+                  icon: Icons.rule_rounded,
+                  label: 'Mức độ hư hỏng',
+                  selected: currentSection == AdminSection.damageLevels,
+                  onTap: () => _goTo(context, const DamageLevelManagementScreen(), AdminSection.damageLevels),
+                  currentSection: currentSection,
                 ),
-                currentSection: currentSection,
-              ),
+              ],
               const SizedBox(height: 8),
               _DrawerItem(
                 icon: Icons.report_problem_rounded,
@@ -247,6 +257,20 @@ class AdminNavigationDrawer extends StatelessWidget {
                 ),
                 currentSection: currentSection,
               ),
+              const SizedBox(height: 18),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded),
+                title: const Text('Đăng xuất'),
+                onTap: () {
+                  SessionManager.clear();
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                    (_) => false,
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -266,6 +290,7 @@ class AdminNavigationDrawer extends StatelessWidget {
 
 enum AdminSection {
   dashboard,
+  reports,
   devices,
   rentalOrders,
   users,

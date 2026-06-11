@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:nhom6_detai5_doancuoiki/screens/customer/booking_screen.dart';
-import 'package:nhom6_detai5_doancuoiki/screens/customer/my_assets_screen.dart';
+// Import các màn hình nằm trong cùng thư mục customer
 import 'customer/catalog_screen.dart';
-
+import 'customer/my_orders_screen.dart';
+import 'customer/my_assets_screen.dart';
+import 'customer/chat_support_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,11 +15,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // Khởi tạo danh sách 3 màn hình
-  final List<Widget> _screens = const [
-    CatalogScreen(),
-    BookingScreen(),
-    MyAssetsScreen(),
+  // Khởi tạo danh sách 4 màn hình chính tương ứng với toàn bộ API Phân hệ User
+  final List<Widget> _screens = [
+    const CatalogScreen(),
+    const MyOrdersScreen(),
+    const MyAssetsScreen(),
+    const ChatSupportScreen(),
   ];
 
   @override
@@ -33,20 +35,29 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         destinations: const [
+          // TAB 1: Màn 1 & Màn 4 & Màn 5 & Màn 2
           NavigationDestination(
             icon: Icon(Icons.storefront_outlined),
             selectedIcon: Icon(Icons.storefront),
             label: 'Danh mục',
           ),
+          // TAB 2: Màn 6 & Màn 7 & Màn 8 & Màn 10 & Màn 11 & Màn 12
           NavigationDestination(
-            icon: Icon(Icons.shopping_cart_checkout_outlined),
-            selectedIcon: Icon(Icons.shopping_cart_checkout),
-            label: 'Yêu cầu',
+            icon: Icon(Icons.assignment_outlined),
+            selectedIcon: Icon(Icons.assignment),
+            label: 'Đơn thuê',
           ),
+          // TAB 3: Màn 3 & Màn 9
           NavigationDestination(
             icon: Icon(Icons.devices_outlined),
             selectedIcon: Icon(Icons.devices),
             label: 'Máy của tôi',
+          ),
+          // TAB 4: Màn 13
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'Hỗ trợ',
           ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({super.key});
@@ -9,274 +10,143 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
-  DateTimeRange? _selectedDateRange;
   final _formKey = GlobalKey<FormState>();
+  final _nguoiDaiDienController = TextEditingController();
+  final _phongBanController = TextEditingController();
+  final _mucDichController = TextEditingController();
 
-  // Mock data máy đã chọn
-  List<Map<String, dynamic>> selectedItems = [
-    {'id': '1', 'name': 'ThinkPad T14 Gen 3', 'price': 150000},
-    {'id': '2', 'name': 'MacBook Pro M2', 'price': 250000},
-  ];
+  DateTime _ngayBatDau = DateTime.now();
+  DateTime _ngayKetThuc = DateTime.now().add(const Duration(days: 30));
+  bool _isLoading = false;
 
-  // Hàm mở bộ chọn ngày
-  Future<void> _selectDateRange(BuildContext context) async {
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Theme.of(context).primaryColor,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null && picked != _selectedDateRange) {
-      setState(() {
-        _selectedDateRange = picked;
-      });
+  // Giả lập danh sách ID máy được truyền từ giỏ hàng sang (Ví dụ máy ID 1 và 2)
+  final List<int> selectedMachineIds = [1, 2]; 
+
+  Future<void> _submitBooking() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    // Điền IP máy tính hoặc 10.0.2.2 cho máy ảo Android
+    const String apiUrl = 'http://10.0.2.2:5135/api/user/UserOrders/booking';
+
+    final Map<String, dynamic> bookingData = {
+      "donViId": 1, // Giả lập ID Công ty ABC đã insert ở dữ liệu mẫu
+      "nguoiTaoId": 3, // Giả lập ID tài khoản khách hàng Nguyễn Văn An
+      "ngayBatDau": _ngayBatDau.toIso8601String(),
+      "ngayKetThucDuKien": _ngayKetThuc.toIso8601String(),
+      "mucDichSuDung": "${_nguoiDaiDienController.text} - ${_phongBanController.text}: ${_mucDichController.text}",
+      "mayTinhIds": selectedMachineIds
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(bookingData),
+      );
+
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        _showSuccessDialog(result['code'] ?? 'DT-SUCCESS');
+      } else {
+        _showSnackBar('Lỗi hệ thống: ${response.body}');
+      }
+    } catch (e) {
+      _showSnackBar('Không thể kết nối đến máy chủ API: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
+  }
+
+  void _showSuccessDialog(stringCode) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 8), Text('Thành công')],
+        ),
+        content: Text('Đơn thuê $stringCode đã được gửi lên hệ thống và đang chờ duyệt.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Đóng Dialog
+              Navigator.pop(context); // Quay về màn hình trước
+            },
+            child: const Text('OK'),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color techBlue = Color(0xFF1E88E5);
-    const Color techDarkBlue = Color(0xFF0D47A1);
-
-    double totalPerDay = selectedItems.fold(
-      0,
-      (sum, item) => sum + (item['price'] as int),
-    );
-    int days = _selectedDateRange?.duration.inDays ?? 0;
-    double expectedTotal =
-        totalPerDay * (days == 0 ? 1 : days); // Tính tạm ít nhất 1 ngày
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Gửi yêu cầu thuê',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- Section 1: Máy đã chọn ---
-              const Text(
-                'Thiết bị đã chọn',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              if (selectedItems.isEmpty)
-                const Text(
-                  'Chưa có thiết bị nào trong giỏ',
-                  style: TextStyle(color: Colors.grey),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: selectedItems.length,
-                  itemBuilder: (context, index) {
-                    final item = selectedItems[index];
-                    return Dismissible(
-                      key: Key(item['id']),
-                      direction: DismissDirection.endToStart,
-                      onDismissed: (direction) {
-                        setState(() {
-                          selectedItems.removeAt(index);
-                        });
-                      },
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20),
-                        color: Colors.red,
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      child: Card(
-                        elevation: 1,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: Container(
-                            width: 50,
-                            color: Colors.grey[200],
-                            child: const Icon(Icons.laptop_mac),
-                          ),
-                          title: Text(
-                            item['name'],
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            '${NumberFormat.decimalPattern('vi').format(item['price'])} đ/ngày',
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              const SizedBox(height: 24),
-
-              // --- Section 2: Thời gian ---
-              const Text(
-                'Thời gian dự kiến',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () => _selectDateRange(context),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_month, color: techBlue),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _selectedDateRange == null
-                            ? const Text('Chọn ngày nhận và ngày trả')
-                            : Text(
-                                '${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.start)} - ${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.end)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // --- Section 3: Thông tin đơn vị ---
-              const Text(
-                'Thông tin người đại diện',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Tên người đại diện',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Phòng ban / Đơn vị',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.business_outlined),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Mục đích sử dụng',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 80), // Padding cho BottomBar
-            ],
-          ),
-        ),
-      ),
-      // --- Bottom Bar: Tổng tiền & Nút Gửi ---
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          // ignore: deprecated_member_use
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              offset: const Offset(0, -4),
-              blurRadius: 10,
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(title: const Text('Thông tin gửi yêu cầu thuê')),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.teal))
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  const Text(
-                    'Tổng dự kiến:',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  TextFormField(
+                    controller: _nguoiDaiDienController,
+                    decoration: const InputDecoration(labelText: 'Người đại diện nhận máy', border: OutlineInputBorder()),
+                    validator: (v) => v!.isEmpty ? 'Vui lòng nhập tên người nhận' : null,
                   ),
-                  Text(
-                    '${NumberFormat.decimalPattern('vi').format(expectedTotal)} đ',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: techBlue,
-                    ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _phongBanController,
+                    decoration: const InputDecoration(labelText: 'Phòng ban / Đơn vị yêu cầu', border: OutlineInputBorder()),
+                    validator: (v) => v!.isEmpty ? 'Vui lòng nhập tên phòng ban' : null,
                   ),
-                ],
-              ),
-              // CHỈNH SỬA: Thay thế nút cũ sang nút dải màu xanh công nghệ đồng bộ với dự án
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  gradient: selectedItems.isEmpty
-                      ? null
-                      : const LinearGradient(colors: [techBlue, techDarkBlue]),
-                  color: selectedItems.isEmpty ? Colors.grey.shade300 : null,
-                  boxShadow: selectedItems.isEmpty
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: techBlue.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _mucDichController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(labelText: 'Mục đích sử dụng thiết bị', border: OutlineInputBorder()),
+                    validator: (v) => v!.isEmpty ? 'Vui lòng nhập mục đích thuê' : null,
+                  ),
+                  const SizedBox(height: 24),
+                  Card(
+                    color: Colors.teal.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.date_range, color: Colors.teal),
+                            title: const Text('Ngày bắt đầu thuê'),
+                            trailing: Text('${_ngayBatDau.day}/${_ngayBatDau.month}/${_ngayBatDau.year}'),
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.update, color: Colors.orange),
+                            title: const Text('Ngày trả dự kiến'),
+                            trailing: Text('${_ngayKetThuc.day}/${_ngayKetThuc.month}/${_ngayKetThuc.year}'),
                           ),
                         ],
-                ),
-                child: ElevatedButton(
-                  onPressed: selectedItems.isEmpty
-                      ? null
-                      : () {
-                          // Xử lý gửi form
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    foregroundColor: Colors.white,
-                    shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 28,
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
-                  child: const Text(
-                    'Gửi Yêu Cầu',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _submitBooking,
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                      child: const Text('GỬI ĐƠN XÁC NHẬN THUÊ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  )
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }

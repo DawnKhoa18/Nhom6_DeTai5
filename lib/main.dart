@@ -4,6 +4,7 @@ import 'package:nhom6_detai5_doancuoiki/screens/admin/edit_equipment_screen_admi
 import 'package:nhom6_detai5_doancuoiki/screens/admin/order_detail_admin_screen.dart';
 import 'package:nhom6_detai5_doancuoiki/screens/admin/rental_orders_screen_admin.dart';
 import 'package:nhom6_detai5_doancuoiki/screens/auth/welcome_screen.dart';
+import 'package:nhom6_detai5_doancuoiki/screens/main_screen.dart';
 
 void main() {
   runApp(const MyApp());

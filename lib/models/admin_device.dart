@@ -1,5 +1,6 @@
 class AdminDevice {
   final int id;
+  final int computerLineId;
   final String assetCode;
   final String? serialNumber;
   final String? modelName;
@@ -20,6 +21,7 @@ class AdminDevice {
 
   const AdminDevice({
     required this.id,
+    required this.computerLineId,
     required this.assetCode,
     required this.serialNumber,
     required this.modelName,
@@ -42,6 +44,7 @@ class AdminDevice {
   factory AdminDevice.fromJson(Map<String, dynamic> json) {
     return AdminDevice(
       id: json['id'] as int,
+      computerLineId: json['dongMayTinhId'] as int? ?? 0,
       assetCode: json['maTaiSan'] as String? ?? '',
       serialNumber: json['serialNumber'] as String?,
       modelName: json['tenDong'] as String?,

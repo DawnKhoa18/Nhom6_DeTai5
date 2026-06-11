@@ -31,6 +31,75 @@ class _DamageLevelManagementScreenState
     });
   }
 
+  void _showDamageLevelForm([AdminDamageLevel? level]) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => _DamageLevelFormSheet(
+        apiService: _apiService,
+        level: level,
+        onSaved: () {
+          Navigator.pop(sheetContext);
+          _reload();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                level == null
+                    ? 'Đã thêm mức độ hư hỏng.'
+                    : 'Đã cập nhật mức độ hư hỏng.',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _deleteDamageLevel(AdminDamageLevel level) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xóa mức độ hư hỏng?'),
+        content: Text(
+          'Mức “${level.name}” sẽ bị xóa khỏi quy định đền bù.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _apiService.deleteDamageLevel(level.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã xóa mức độ hư hỏng.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể xóa: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,6 +119,13 @@ class _DamageLevelManagementScreenState
       ),
       drawer: const AdminNavigationDrawer(
         currentSection: AdminSection.damageLevels,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showDamageLevelForm(),
+        backgroundColor: const Color(0xFF1D4ED8),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Thêm mức độ'),
       ),
       body: FutureBuilder<List<AdminDamageLevel>>(
         future: _damageLevelsFuture,
@@ -72,7 +148,7 @@ class _DamageLevelManagementScreenState
           return RefreshIndicator(
             onRefresh: () async => _reload(),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
               children: [
                 _HeaderPanel(
                   levels: levels,
@@ -118,7 +194,13 @@ class _DamageLevelManagementScreenState
                 if (filtered.isEmpty)
                   const _EmptyState()
                 else
-                  ...filtered.map((level) => _DamageLevelCard(level: level)),
+                  ...filtered.map(
+                    (level) => _DamageLevelCard(
+                      level: level,
+                      onEdit: () => _showDamageLevelForm(level),
+                      onDelete: () => _deleteDamageLevel(level),
+                    ),
+                  ),
               ],
             ),
           );
@@ -132,6 +214,193 @@ class _DamageLevelManagementScreenState
     return normalizedKeyword.isEmpty ||
         level.name.toLowerCase().contains(normalizedKeyword) ||
         (level.description ?? '').toLowerCase().contains(normalizedKeyword);
+  }
+}
+
+class _DamageLevelFormSheet extends StatefulWidget {
+  final AdminApiService apiService;
+  final AdminDamageLevel? level;
+  final VoidCallback onSaved;
+
+  const _DamageLevelFormSheet({
+    required this.apiService,
+    required this.level,
+    required this.onSaved,
+  });
+
+  @override
+  State<_DamageLevelFormSheet> createState() =>
+      _DamageLevelFormSheetState();
+}
+
+class _DamageLevelFormSheetState extends State<_DamageLevelFormSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _percentController;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.level?.name ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.level?.description ?? '',
+    );
+    _percentController = TextEditingController(
+      text: widget.level?.compensationPercent.toStringAsFixed(0) ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    _percentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEditing = widget.level != null;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 18,
+        right: 18,
+        top: 18,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+      ),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isEditing ? 'Sửa mức độ hư hỏng' : 'Thêm mức độ hư hỏng',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Tên mức độ',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Nhập tên mức độ hư hỏng';
+                  }
+                  if (value.trim().length > 100) {
+                    return 'Tên mức độ không được quá 100 ký tự';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _percentController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Tỷ lệ đền bù',
+                  suffixText: '%',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  final percent = double.tryParse(
+                    (value ?? '').trim().replaceAll(',', '.'),
+                  );
+                  if (percent == null || percent < 0 || percent > 100) {
+                    return 'Tỷ lệ đền bù phải từ 0 đến 100';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descriptionController,
+                minLines: 3,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Mô tả quy định',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: _isSubmitting ? null : _submit,
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_rounded),
+                  label: Text(isEditing ? 'Lưu thay đổi' : 'Thêm mức độ'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final name = _nameController.text.trim();
+    final description = _descriptionController.text.trim();
+    final percent = double.parse(
+      _percentController.text.trim().replaceAll(',', '.'),
+    );
+
+    try {
+      if (widget.level == null) {
+        await widget.apiService.createDamageLevel(
+          name: name,
+          description: description,
+          compensationPercent: percent,
+        );
+      } else {
+        await widget.apiService.updateDamageLevel(
+          id: widget.level!.id,
+          name: name,
+          description: description,
+          compensationPercent: percent,
+        );
+      }
+
+      if (!mounted) return;
+      widget.onSaved();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lưu thất bại: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 }
 
@@ -300,8 +569,14 @@ class _MetricTile extends StatelessWidget {
 
 class _DamageLevelCard extends StatelessWidget {
   final AdminDamageLevel level;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  const _DamageLevelCard({required this.level});
+  const _DamageLevelCard({
+    required this.level,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -371,6 +646,42 @@ class _DamageLevelCard extends StatelessWidget {
               _PercentBadge(
                 label: '${percentFormat.format(level.compensationPercent)}%',
                 color: color,
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Tác vụ',
+                onSelected: (value) {
+                  if (value == 'edit') onEdit();
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_rounded, size: 19),
+                        SizedBox(width: 10),
+                        Text('Sửa'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          size: 19,
+                          color: Color(0xFFDC2626),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Xóa',
+                          style: TextStyle(color: Color(0xFFDC2626)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

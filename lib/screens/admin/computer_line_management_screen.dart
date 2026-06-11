@@ -30,6 +30,72 @@ class _ComputerLineManagementScreenState
     });
   }
 
+  void _showForm([AdminComputerLine? line]) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => _ComputerLineForm(
+        api: _apiService,
+        line: line,
+        onSaved: () {
+          Navigator.pop(sheetContext);
+          _reload();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                line == null ? 'Đã thêm dòng máy.' : 'Đã cập nhật dòng máy.',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _delete(AdminComputerLine line) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xóa dòng máy?'),
+        content: Text(
+          line.deviceCount > 0
+              ? 'Dòng máy này đang có thiết bị và không thể xóa.'
+              : 'Dòng máy ' + line.brand + ' ' + line.name + ' sẽ bị xóa.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: line.deviceCount > 0
+                ? null
+                : () => Navigator.pop(dialogContext, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _apiService.deleteComputerLine(line.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã xóa dòng máy.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể xóa: ' + error.toString())),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,7 +117,7 @@ class _ComputerLineManagementScreenState
         currentSection: AdminSection.computerLines,
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () => _showForm(),
         backgroundColor: const Color(0xFF1D4ED8),
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded),
@@ -124,7 +190,13 @@ class _ComputerLineManagementScreenState
                 if (filtered.isEmpty)
                   const _EmptyState()
                 else
-                  ...filtered.map((line) => _ComputerLineCard(line: line)),
+                  ...filtered.map(
+                    (line) => _ComputerLineCard(
+                      line: line,
+                      onEdit: () => _showForm(line),
+                      onDelete: () => _delete(line),
+                    ),
+                  ),
               ],
             ),
           );
@@ -140,6 +212,184 @@ class _ComputerLineManagementScreenState
     return line.name.toLowerCase().contains(normalizedKeyword) ||
         line.brand.toLowerCase().contains(normalizedKeyword) ||
         (line.description ?? '').toLowerCase().contains(normalizedKeyword);
+  }
+}
+
+class _ComputerLineForm extends StatefulWidget {
+  final AdminApiService api;
+  final AdminComputerLine? line;
+  final VoidCallback onSaved;
+
+  const _ComputerLineForm({
+    required this.api,
+    required this.line,
+    required this.onSaved,
+  });
+
+  @override
+  State<_ComputerLineForm> createState() => _ComputerLineFormState();
+}
+
+class _ComputerLineFormState extends State<_ComputerLineForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _brandController;
+  late final TextEditingController _descriptionController;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.line?.name ?? '');
+    _brandController = TextEditingController(text: widget.line?.brand ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.line?.description ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _brandController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      final line = widget.line;
+      if (line == null) {
+        await widget.api.createComputerLine(
+          name: _nameController.text.trim(),
+          brand: _brandController.text.trim(),
+          description: _descriptionController.text.trim(),
+        );
+      } else {
+        await widget.api.updateComputerLine(
+          id: line.id,
+          name: _nameController.text.trim(),
+          brand: _brandController.text.trim(),
+          description: _descriptionController.text.trim(),
+        );
+      }
+      if (!mounted) return;
+      widget.onSaved();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _saving = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.line == null ? 'Thêm dòng máy' : 'Sửa dòng máy',
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Đóng',
+                    onPressed: _saving ? null : () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              TextFormField(
+                controller: _nameController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Tên dòng máy',
+                  prefixIcon: Icon(Icons.computer_rounded),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Vui lòng nhập tên dòng máy.'
+                    : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _brandController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Hãng',
+                  prefixIcon: Icon(Icons.business_rounded),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Vui lòng nhập hãng.'
+                    : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _descriptionController,
+                minLines: 3,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: 'Mô tả',
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.notes_rounded),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: Color(0xFFDC2626),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_rounded),
+                  label: Text(_saving ? 'Đang lưu...' : 'Lưu dòng máy'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -236,8 +486,14 @@ class _HeaderPanel extends StatelessWidget {
 
 class _ComputerLineCard extends StatelessWidget {
   final AdminComputerLine line;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  const _ComputerLineCard({required this.line});
+  const _ComputerLineCard({
+    required this.line,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -289,8 +545,39 @@ class _ComputerLineCard extends StatelessWidget {
                       ),
                     ),
                     _SummaryChip(
-                      label: '${line.deviceCount} máy',
+                      label: line.deviceCount.toString() + ' máy',
                       color: const Color(0xFF1D4ED8),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Thao tác',
+                      onSelected: (value) {
+                        if (value == 'edit') onEdit();
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.edit_rounded),
+                            title: Text('Sửa dòng máy'),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              Icons.delete_outline_rounded,
+                              color: Color(0xFFDC2626),
+                            ),
+                            title: Text(
+                              'Xóa dòng máy',
+                              style: TextStyle(color: Color(0xFFDC2626)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
